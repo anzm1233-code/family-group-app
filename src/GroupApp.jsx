@@ -503,6 +503,34 @@ export default function GroupApp() {
     setTimePickerOpen(false);
   }
 
+  function loadDaumPostcodeScript(callback) {
+    if (window.daum && window.daum.Postcode) {
+      callback();
+      return;
+    }
+    const existing = document.getElementById("daum-postcode-script");
+    if (existing) {
+      existing.addEventListener("load", callback, { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "daum-postcode-script";
+    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.onload = callback;
+    document.body.appendChild(script);
+  }
+
+  function searchAddress(onAddress) {
+    loadDaumPostcodeScript(() => {
+      new window.daum.Postcode({
+        oncomplete: (data) => {
+          const address = data.roadAddress || data.jibunAddress || data.address;
+          onAddress(address, data.buildingName || "");
+        },
+      }).open();
+    });
+  }
+
   const [viewYear, setViewYear] = useState(2026);
   const [viewMonth, setViewMonth] = useState(7); // 1-indexed
 
@@ -921,40 +949,6 @@ export default function GroupApp() {
                 ))}
               </select>
             </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-              {showNewTaskLocation ? (
-                <>
-                  <input
-                    value={newTaskLocationName}
-                    onChange={(e) => setNewTaskLocationName(e.target.value)}
-                    placeholder="장소 이름"
-                    style={{ flex: 1 }}
-                  />
-                  <input
-                    value={newTaskLocationAddress}
-                    onChange={(e) => setNewTaskLocationAddress(e.target.value)}
-                    placeholder="주소"
-                    style={{ flex: 1 }}
-                  />
-                </>
-              ) : (
-                <button
-                  onClick={() => setShowNewTaskLocation(true)}
-                  style={{
-                    fontSize: 12,
-                    padding: "6px 10px",
-                    background: "transparent",
-                    border: "0.5px dashed var(--border-strong)",
-                    color: "var(--text-secondary)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  <MapPin size={13} /> 주소 추가
-                </button>
-              )}
-            </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
               {newTaskPhotos.map((src, idx) => (
                 <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
@@ -998,6 +992,30 @@ export default function GroupApp() {
                 }}
               >
                 <Plus size={13} /> 사진 추가
+              </button>
+              <button
+                onClick={() => setShowNewTaskLocation(true)}
+                style={{
+                  fontSize: 12,
+                  padding: "6px 10px",
+                  background: "transparent",
+                  border: "0.5px dashed var(--border-strong)",
+                  color: "var(--text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  maxWidth: "100%",
+                }}
+              >
+                {newTaskLocationAddress ? (
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    📍 {newTaskLocationName || newTaskLocationAddress}
+                  </span>
+                ) : (
+                  <>
+                    <MapPin size={13} /> 주소 추가
+                  </>
+                )}
               </button>
             </div>
             <div style={{ display: "flex", gap: 16, marginBottom: 10, marginTop: -2 }}>
@@ -1217,6 +1235,134 @@ export default function GroupApp() {
         </div>
       )}
 
+      {showNewTaskLocation && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={() => setShowNewTaskLocation(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 320,
+              maxWidth: "90vw",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>장소 검색</p>
+              <X
+                size={18}
+                color="var(--text-secondary)"
+                style={{ cursor: "pointer" }}
+                onClick={() => setShowNewTaskLocation(false)}
+              />
+            </div>
+            <input
+              value={newTaskLocationName}
+              onChange={(e) => setNewTaskLocationName(e.target.value)}
+              placeholder="장소 이름"
+              style={{ width: "100%", marginBottom: 8 }}
+            />
+            <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+              <input value={newTaskLocationAddress} readOnly placeholder="주소 검색으로 입력돼요" style={{ flex: 1 }} />
+              <button
+                onClick={() =>
+                  searchAddress((address, buildingName) => {
+                    setNewTaskLocationAddress(address);
+                    setNewTaskLocationName((prev) => prev || buildingName);
+                  })
+                }
+              >
+                주소 검색
+              </button>
+            </div>
+            <button onClick={() => setShowNewTaskLocation(false)} style={{ width: "100%" }}>
+              완료
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showTaskLocationInput && openTask && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 11,
+          }}
+          onClick={() => setShowTaskLocationInput(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 320,
+              maxWidth: "90vw",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>장소 검색</p>
+              <X
+                size={18}
+                color="var(--text-secondary)"
+                style={{ cursor: "pointer" }}
+                onClick={() => setShowTaskLocationInput(false)}
+              />
+            </div>
+            <input
+              value={taskLocationName}
+              onChange={(e) => setTaskLocationName(e.target.value)}
+              placeholder="장소 이름"
+              style={{ width: "100%", marginBottom: 8 }}
+            />
+            <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+              <input value={taskLocationAddress} readOnly placeholder="주소 검색으로 입력돼요" style={{ flex: 1 }} />
+              <button
+                onClick={() =>
+                  searchAddress((address, buildingName) => {
+                    setTaskLocationAddress(address);
+                    setTaskLocationName((prev) => prev || buildingName);
+                  })
+                }
+              >
+                주소 검색
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                if (!taskLocationAddress.trim()) return;
+                setTaskLocation(openTask.id, {
+                  name: taskLocationName.trim() || taskLocationAddress.trim(),
+                  address: taskLocationAddress.trim(),
+                });
+                setShowTaskLocationInput(false);
+                setTaskLocationName("");
+                setTaskLocationAddress("");
+              }}
+              style={{ width: "100%" }}
+            >
+              저장
+            </button>
+          </div>
+        </div>
+      )}
+
       {groupSettingsOpen && (
         <div
           style={{
@@ -1382,50 +1528,21 @@ export default function GroupApp() {
                 <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
                   <MapPin size={14} /> 장소
                 </p>
-                {showTaskLocationInput ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <input
-                      value={taskLocationName}
-                      onChange={(e) => setTaskLocationName(e.target.value)}
-                      placeholder="장소 이름"
-                    />
-                    <input
-                      value={taskLocationAddress}
-                      onChange={(e) => setTaskLocationAddress(e.target.value)}
-                      placeholder="주소"
-                    />
-                    <button
-                      onClick={() => {
-                        if (!taskLocationAddress.trim()) return;
-                        setTaskLocation(openTask.id, {
-                          name: taskLocationName.trim() || taskLocationAddress.trim(),
-                          address: taskLocationAddress.trim(),
-                        });
-                        setShowTaskLocationInput(false);
-                        setTaskLocationName("");
-                        setTaskLocationAddress("");
-                      }}
-                    >
-                      저장
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowTaskLocationInput(true)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      background: "transparent",
-                      border: "0.5px dashed var(--border-strong)",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    <Plus size={15} /> 주소 추가
-                  </button>
-                )}
+                <button
+                  onClick={() => setShowTaskLocationInput(true)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    background: "transparent",
+                    border: "0.5px dashed var(--border-strong)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <Plus size={15} /> 주소 추가
+                </button>
               </div>
             )}
 
