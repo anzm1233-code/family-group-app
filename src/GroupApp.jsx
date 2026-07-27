@@ -211,6 +211,32 @@ export default function GroupApp() {
     reader.readAsDataURL(file);
   }
 
+  const taskPhotoInputRef = useRef(null);
+
+  function handleTaskPhotoClick() {
+    taskPhotoInputRef.current?.click();
+  }
+
+  function handleTaskPhotoFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !openTask) return;
+    const taskId = openTask.id;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const photoUrl = reader.result;
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id !== activeId
+            ? g
+            : { ...g, tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, photos: [...(t.photos || []), photoUrl] } : t)) }
+        )
+      );
+      setOpenTask((prev) => (prev && prev.id === taskId ? { ...prev, photos: [...(prev.photos || []), photoUrl] } : prev));
+    };
+    reader.readAsDataURL(file);
+  }
+
   function openGroup(id) {
     setActiveId(id);
     setTab("home");
@@ -928,6 +954,14 @@ export default function GroupApp() {
         onChange={handleAvatarFileChange}
       />
 
+      <input
+        ref={taskPhotoInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={handleTaskPhotoFileChange}
+      />
+
       {groupSettingsOpen && (
         <div
           style={{
@@ -1092,8 +1126,17 @@ export default function GroupApp() {
               <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
                 <Camera size={14} /> 첨부 사진
               </p>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {(openTask.photos || []).map((src, idx) => (
+                  <img
+                    key={idx}
+                    src={src}
+                    alt=""
+                    style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover", border: "0.5px solid var(--border)" }}
+                  />
+                ))}
                 <div
+                  onClick={handleTaskPhotoClick}
                   style={{
                     width: 52,
                     height: 52,
@@ -1102,6 +1145,7 @@ export default function GroupApp() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    cursor: "pointer",
                   }}
                 >
                   <Plus size={17} color="var(--text-muted)" />
