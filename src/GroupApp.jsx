@@ -900,7 +900,16 @@ export default function GroupApp() {
                   <p style={{ fontSize: 14, margin: "0 0 2px" }}>{openTask.location.name}</p>
                   <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{openTask.location.address}</p>
                 </div>
-                <button style={{ width: "100%", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <button
+                  onClick={() =>
+                    window.open(
+                      `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(openTask.location.address)}`,
+                      "_blank",
+                      "noopener,noreferrer"
+                    )
+                  }
+                  style={{ width: "100%", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                >
                   <Navigation size={15} /> 길찾기 시작
                 </button>
               </div>
