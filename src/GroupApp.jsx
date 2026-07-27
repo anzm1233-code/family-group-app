@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   User,
   MapPin,
@@ -117,8 +117,24 @@ const INITIAL_GROUPS = [
   },
 ];
 
-function Avatar({ tier, size = 28 }) {
+function Avatar({ tier, size = 28, photo }) {
   const border = tier === 0 ? 0.5 : tier === 1 ? 1.5 : tier === 2 ? 2 : 2.5;
+  if (photo) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          border: `${border}px solid var(--text-primary)`,
+          overflow: "hidden",
+          flexShrink: 0,
+        }}
+      >
+        <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -162,6 +178,31 @@ export default function GroupApp() {
 
   const active = groups.find((g) => g.id === activeId);
   const memberById = active ? Object.fromEntries(active.members.map((m) => [m.id, m])) : {};
+
+  const avatarFileInputRef = useRef(null);
+  const [avatarUploadMemberId, setAvatarUploadMemberId] = useState(null);
+
+  function handleAvatarClick(memberId) {
+    setAvatarUploadMemberId(memberId);
+    avatarFileInputRef.current?.click();
+  }
+
+  function handleAvatarFileChange(e) {
+    const file = e.target.files?.[0];
+    const memberId = avatarUploadMemberId;
+    e.target.value = "";
+    if (!file || !memberId) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const photo = reader.result;
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id !== activeId ? g : { ...g, members: g.members.map((m) => (m.id === memberId ? { ...m, photo } : m)) }
+        )
+      );
+    };
+    reader.readAsDataURL(file);
+  }
 
   function openGroup(id) {
     setActiveId(id);
@@ -508,7 +549,31 @@ export default function GroupApp() {
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {active.members.map((m) => (
             <div key={m.id} style={{ textAlign: "center" }}>
-              <Avatar tier={m.tier} />
+              <div
+                onClick={() => handleAvatarClick(m.id)}
+                style={{ position: "relative", width: 28, height: 28, margin: "0 auto", cursor: "pointer" }}
+                title="사진 업로드"
+              >
+                <Avatar tier={m.tier} photo={m.photo} />
+                <div
+                  style={{
+                    position: "absolute",
+                    right: -2,
+                    bottom: -2,
+                    width: 14,
+                    height: 14,
+                    borderRadius: "50%",
+                    background: "var(--text-primary)",
+                    color: "var(--surface-2)",
+                    border: "1.5px solid var(--surface-2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Camera size={8} />
+                </div>
+              </div>
               <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "3px 0 0" }}>{m.name}</p>
             </div>
           ))}
@@ -598,6 +663,9 @@ export default function GroupApp() {
                   {(t.private || t.locked) && <Lock size={13} color="var(--text-muted)" />}
                   {t.location && <MapPin size={14} color="var(--text-muted)" />}
                   {t.due.includes(" ") && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
+                  {!t.broadcast && !t.private && t.assignee && (
+                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={14} photo={memberById[t.assignee]?.photo} />
+                  )}
                   <span style={{ fontSize: 11, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
                     {t.broadcast ? "전체 공지" : t.private ? "나만 보기" : memberById[t.assignee]?.name}
                   </span>
@@ -750,7 +818,7 @@ export default function GroupApp() {
                           .flatMap((e) => e.assignees)
                           .slice(0, 2)
                           .map((a, idx) => (
-                            <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={13} />
+                            <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={13} photo={memberById[a]?.photo} />
                           ))}
                       </div>
                     )}
@@ -764,7 +832,7 @@ export default function GroupApp() {
               {dayEvents.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>일정이 없어요.</p>}
               {dayEvents.map((e) => (
                 <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4 }}>
-                  <Avatar tier={memberById[e.assignees[0]]?.tier ?? 0} size={16} />
+                  <Avatar tier={memberById[e.assignees[0]]?.tier ?? 0} size={16} photo={memberById[e.assignees[0]]?.photo} />
                   <span style={{ flex: 1 }}>{e.title}</span>
                   <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{e.time}</span>
                 </div>
@@ -773,6 +841,14 @@ export default function GroupApp() {
           </>
         )}
       </div>
+
+      <input
+        ref={avatarFileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={handleAvatarFileChange}
+      />
 
       {openTask && (
         <div
@@ -808,7 +884,7 @@ export default function GroupApp() {
                 <span>그룹 전체에게 알림</span>
               ) : (
                 <>
-                  <Avatar tier={memberById[openTask.assignee]?.tier ?? 0} size={18} />
+                  <Avatar tier={memberById[openTask.assignee]?.tier ?? 0} size={18} photo={memberById[openTask.assignee]?.photo} />
                   <span>{memberById[openTask.assignee]?.name} 담당</span>
                 </>
               )}
