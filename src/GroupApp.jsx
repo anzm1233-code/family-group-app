@@ -156,6 +156,8 @@ export default function GroupApp() {
   const [newTaskPrivate, setNewTaskPrivate] = useState(false);
 
   const [today, setToday] = useState(28);
+  const [todayMonth, setTodayMonth] = useState(7);
+  const [todayYear, setTodayYear] = useState(2026);
   const [toast, setToast] = useState(null); // { message, undo }
 
   const active = groups.find((g) => g.id === activeId);
@@ -231,7 +233,18 @@ export default function GroupApp() {
 
   function carryOverToNextDay() {
     const gid = activeId;
-    const nextDay = today + 1;
+    const daysInTodayMonth = new Date(todayYear, todayMonth, 0).getDate();
+    let nextDay = today + 1;
+    let nextMonth = todayMonth;
+    let nextYear = todayYear;
+    if (nextDay > daysInTodayMonth) {
+      nextDay = 1;
+      nextMonth = todayMonth + 1;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear = todayYear + 1;
+      }
+    }
     setGroups((prev) =>
       prev.map((g) =>
         g.id !== gid
@@ -241,12 +254,14 @@ export default function GroupApp() {
               tasks: g.tasks.map((t) => {
                 if (t.broadcast || t.done || taskDay(t) !== today) return t;
                 const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
-                return { ...t, due: `7/${nextDay}${timePart}` };
+                return { ...t, due: `${nextMonth}/${nextDay}${timePart}` };
               }),
             }
       )
     );
     setToday(nextDay);
+    setTodayMonth(nextMonth);
+    setTodayYear(nextYear);
   }
 
   function addTask() {
@@ -263,7 +278,7 @@ export default function GroupApp() {
                   id: Date.now(),
                   title: newTaskTitle,
                   assignee: newTaskBroadcast ? null : g.members[0]?.id ?? null,
-                  due: newTaskTime ? `7/${today} ${newTaskTime}` : `7/${today}`,
+                  due: newTaskTime ? `${todayMonth}/${today} ${newTaskTime}` : `${todayMonth}/${today}`,
                   done: false,
                   location: null,
                   broadcast: newTaskBroadcast,
@@ -534,7 +549,7 @@ export default function GroupApp() {
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
               <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
-                <Check size={14} /> 7월 {today}일 할일 / 공지
+                <Check size={14} /> {todayMonth}월 {today}일 할일 / 공지
               </p>
               <button
                 onClick={carryOverToNextDay}
@@ -544,7 +559,7 @@ export default function GroupApp() {
               </button>
             </div>
             <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "4px 0 8px" }}>
-              안 끝난 할일은 다음 날로 넘기면 자동 이월돼요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
+              완료 안 된 할일은 다음 날로 넘기면 자동 이월돼요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {active.tasks
