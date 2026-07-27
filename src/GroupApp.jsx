@@ -17,6 +17,14 @@ import {
   Lock,
   Trash2,
 } from "lucide-react";
+import KoreanLunarCalendar from "korean-lunar-calendar";
+
+function getLunarLabel(year, month, day) {
+  const cal = new KoreanLunarCalendar();
+  if (!cal.setSolarDate(year, month, day)) return null;
+  const lunar = cal.getLunarCalendar();
+  return `음력 ${lunar.month}월 ${lunar.day}일${lunar.intercalation ? " (윤달)" : ""}`;
+}
 
 const QUICK_START = {
   family: {
@@ -161,6 +169,7 @@ export default function GroupApp() {
   const [tab, setTab] = useState("home");
   const [selectedDay, setSelectedDay] = useState(28);
   const [openTask, setOpenTask] = useState(null);
+  const [openEvent, setOpenEvent] = useState(null);
 
   const [createChoice, setCreateChoice] = useState(null);
   const [createStep, setCreateStep] = useState("choose");
@@ -390,8 +399,21 @@ export default function GroupApp() {
     closeTaskDetail();
   }
 
+  function openEventDetail(e) {
+    setOpenEvent(e);
+  }
+
+  function closeEventDetail() {
+    setOpenEvent(null);
+  }
+
   function taskDay(t) {
     const m = t.due.match(/\/(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function taskMonth(t) {
+    const m = t.due.match(/^(\d+)\//);
     return m ? parseInt(m[1], 10) : null;
   }
 
@@ -607,8 +629,18 @@ export default function GroupApp() {
 
   const weeks = getWeeks(viewYear, viewMonth);
   const isSampleMonth = viewYear === 2026 && viewMonth === 7;
-  const dayHasEvent = (d) => (active && isSampleMonth ? active.events.filter((e) => e.date === d) : []);
-  const dayEvents = active && isSampleMonth ? active.events.filter((e) => e.date === selectedDay) : [];
+  const eventsOnDay = (d) => (active && isSampleMonth ? active.events.filter((e) => e.date === d) : []);
+  const tasksOnDay = (d) =>
+    active && viewYear === 2026 ? active.tasks.filter((t) => taskMonth(t) === viewMonth && taskDay(t) === d) : [];
+  const dayAssignees = (d) => [
+    ...eventsOnDay(d).flatMap((e) => e.assignees),
+    ...tasksOnDay(d)
+      .map((t) => t.assignee)
+      .filter(Boolean),
+  ];
+  const dayEvents = eventsOnDay(selectedDay);
+  const dayTasks = tasksOnDay(selectedDay);
+  const selectedLunarLabel = getLunarLabel(viewYear, viewMonth, selectedDay);
 
   // ---------- GROUP LIST ----------
   if (view === "groups") {
@@ -1156,7 +1188,7 @@ export default function GroupApp() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 2 }}>
               {weeks.flat().map((d, i) => {
                 if (!d) return <div key={i} style={{ height: 48 }} />;
-                const evs = dayHasEvent(d);
+                const assignees = dayAssignees(d);
                 const isSelected = d === selectedDay;
                 return (
                   <div
@@ -1173,14 +1205,11 @@ export default function GroupApp() {
                     }}
                   >
                     <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 500 : 400 }}>{d}</div>
-                    {evs.length > 0 && (
+                    {assignees.length > 0 && (
                       <div style={{ display: "flex", gap: 1, marginTop: 2 }}>
-                        {evs
-                          .flatMap((e) => e.assignees)
-                          .slice(0, 2)
-                          .map((a, idx) => (
-                            <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={13} photo={memberById[a]?.photo} />
-                          ))}
+                        {assignees.slice(0, 2).map((a, idx) => (
+                          <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={13} photo={memberById[a]?.photo} />
+                        ))}
                       </div>
                     )}
                   </div>
@@ -1189,13 +1218,55 @@ export default function GroupApp() {
             </div>
 
             <div style={{ marginTop: 14, borderTop: "0.5px solid var(--border)", paddingTop: 10 }}>
-              <p style={{ fontSize: 12, fontWeight: 500, margin: "0 0 6px" }}>{viewMonth}월 {selectedDay}일</p>
-              {dayEvents.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>일정이 없어요.</p>}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+                <p style={{ fontSize: 12, fontWeight: 500, margin: 0 }}>{viewMonth}월 {selectedDay}일</p>
+                {selectedLunarLabel && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{selectedLunarLabel}</span>}
+              </div>
+              {dayEvents.length === 0 && dayTasks.length === 0 && (
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>일정이 없어요.</p>
+              )}
               {dayEvents.map((e) => (
-                <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4 }}>
+                <div
+                  key={"e" + e.id}
+                  onClick={() => openEventDetail(e)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4, cursor: "pointer" }}
+                >
                   <Avatar tier={memberById[e.assignees[0]]?.tier ?? 0} size={16} photo={memberById[e.assignees[0]]?.photo} />
                   <span style={{ flex: 1 }}>{e.title}</span>
                   <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{e.time}</span>
+                </div>
+              ))}
+              {dayTasks.map((t) => (
+                <div
+                  key={"t" + t.id}
+                  onClick={() => openTaskDetail(t)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4, cursor: "pointer" }}
+                >
+                  {t.broadcast ? (
+                    <Megaphone size={14} color={active.accent} />
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={t.done}
+                      onClick={(ev) => ev.stopPropagation()}
+                      onChange={() => toggleTask(t.id)}
+                    />
+                  )}
+                  <span
+                    style={{
+                      flex: 1,
+                      textDecoration: t.done ? "line-through" : "none",
+                      color: t.done ? "var(--text-muted)" : "var(--text-primary)",
+                    }}
+                  >
+                    {t.title}
+                  </span>
+                  {t.private && <Lock size={12} color="var(--text-muted)" />}
+                  {t.location && <MapPin size={12} color="var(--text-muted)" />}
+                  {!t.broadcast && t.assignee && (
+                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={16} photo={memberById[t.assignee]?.photo} />
+                  )}
+                  {t.due.includes(" ") && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
                 </div>
               ))}
             </div>
@@ -1670,6 +1741,76 @@ export default function GroupApp() {
             >
               <Trash2 size={14} /> {openTask.locked ? "잠긴 항목 (삭제 불가)" : "삭제하기"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {openEvent && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={closeEventDetail}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 340,
+              maxWidth: "90vw",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>일정 상세</p>
+              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeEventDetail} />
+            </div>
+
+            <p style={{ fontSize: 17, fontWeight: 500, margin: "0 0 4px" }}>{openEvent.title}</p>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+              {viewMonth}월 {openEvent.date}일 · {openEvent.time}
+            </div>
+            {(() => {
+              const lunar = getLunarLabel(viewYear, viewMonth, openEvent.date);
+              return lunar ? <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>{lunar}</div> : null;
+            })()}
+
+            <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
+              <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>참석자</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {openEvent.assignees.map((a) => (
+                  <div key={a} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Avatar tier={memberById[a]?.tier ?? 0} size={20} photo={memberById[a]?.photo} />
+                    <span style={{ fontSize: 14 }}>{memberById[a]?.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 14,
+                borderTop: "0.5px solid var(--border)",
+                paddingTop: 12,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={(active.events.find((e) => e.id === openEvent.id) || openEvent).notify !== false}
+                onChange={() => toggleEventNotify(openEvent.id)}
+              />
+              알림 받기
+            </label>
           </div>
         </div>
       )}
