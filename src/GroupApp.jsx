@@ -170,6 +170,11 @@ export default function GroupApp() {
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskBroadcast, setNewTaskBroadcast] = useState(false);
   const [newTaskPrivate, setNewTaskPrivate] = useState(false);
+  const [newTaskAssignee, setNewTaskAssignee] = useState(null);
+
+  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
 
   const [today, setToday] = useState(28);
   const [todayMonth, setTodayMonth] = useState(7);
@@ -178,6 +183,8 @@ export default function GroupApp() {
 
   const active = groups.find((g) => g.id === activeId);
   const memberById = active ? Object.fromEntries(active.members.map((m) => [m.id, m])) : {};
+  const selectedAssignee =
+    active && active.members.some((m) => m.id === newTaskAssignee) ? newTaskAssignee : active?.members[0]?.id ?? "";
 
   const avatarFileInputRef = useRef(null);
   const [avatarUploadMemberId, setAvatarUploadMemberId] = useState(null);
@@ -238,6 +245,41 @@ export default function GroupApp() {
     };
     setGroups((prev) => [...prev, group]);
     openGroup(id);
+  }
+
+  function addMember() {
+    if (!newMemberName.trim()) return;
+    const id = "m" + Date.now();
+    setGroups((prev) =>
+      prev.map((g) => (g.id !== activeId ? g : { ...g, members: [...g.members, { id, name: newMemberName.trim(), tier: 0 }] }))
+    );
+    setNewMemberName("");
+    setShowAddMember(false);
+  }
+
+  function removeMember(memberId) {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id !== activeId
+          ? g
+          : {
+              ...g,
+              members: g.members.filter((m) => m.id !== memberId),
+              tasks: g.tasks.map((t) => (t.assignee === memberId ? { ...t, assignee: null } : t)),
+              events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => a !== memberId) })),
+            }
+      )
+    );
+  }
+
+  function toggleEventNotify(eventId) {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id !== activeId
+          ? g
+          : { ...g, events: g.events.map((e) => (e.id === eventId ? { ...e, notify: e.notify === false ? true : false } : e)) }
+      )
+    );
   }
 
   function toggleTask(id) {
@@ -318,7 +360,7 @@ export default function GroupApp() {
                 {
                   id: Date.now(),
                   title: newTaskTitle,
-                  assignee: newTaskBroadcast ? null : g.members[0]?.id ?? null,
+                  assignee: newTaskBroadcast ? null : selectedAssignee || null,
                   due: newTaskTime ? `${todayMonth}/${today} ${newTaskTime}` : `${todayMonth}/${today}`,
                   done: false,
                   location: null,
@@ -543,7 +585,12 @@ export default function GroupApp() {
               {active.members.length}명
             </span>
           </div>
-          <Settings size={19} color="var(--text-secondary)" />
+          <Settings
+            size={19}
+            color="var(--text-secondary)"
+            style={{ cursor: "pointer" }}
+            onClick={() => setGroupSettingsOpen(true)}
+          />
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -721,6 +768,20 @@ export default function GroupApp() {
                 style={{ width: 110 }}
               />
             </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <select
+                value={selectedAssignee}
+                onChange={(e) => setNewTaskAssignee(e.target.value)}
+                disabled={newTaskBroadcast}
+                style={{ flex: 1 }}
+              >
+                {active.members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{ display: "flex", gap: 16, marginBottom: 10, marginTop: -2 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                 <input
@@ -754,10 +815,27 @@ export default function GroupApp() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {active.events.map((e) => (
-                <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                <div
+                  key={e.id}
+                  onClick={() => {
+                    setViewYear(2026);
+                    setViewMonth(7);
+                    setSelectedDay(e.date);
+                    setTab("calendar");
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
+                >
                   <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>7/{e.date}</div>
                   <div style={{ flex: 1 }}>{e.title}</div>
-                  <Bell size={13} color="var(--text-muted)" />
+                  <Bell
+                    size={13}
+                    color={e.notify === false ? "var(--border-strong)" : "var(--text-muted)"}
+                    style={{ cursor: "pointer", opacity: e.notify === false ? 0.5 : 1 }}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      toggleEventNotify(e.id);
+                    }}
+                  />
                 </div>
               ))}
             </div>
@@ -849,6 +927,101 @@ export default function GroupApp() {
         style={{ display: "none" }}
         onChange={handleAvatarFileChange}
       />
+
+      {groupSettingsOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={() => {
+            setGroupSettingsOpen(false);
+            setShowAddMember(false);
+            setNewMemberName("");
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 340,
+              maxWidth: "90vw",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>그룹 설정</p>
+              <X
+                size={18}
+                color="var(--text-secondary)"
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  setGroupSettingsOpen(false);
+                  setShowAddMember(false);
+                  setNewMemberName("");
+                }}
+              />
+            </div>
+
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({active.members.length}명)</p>
+            <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
+              {active.members.map((m) => (
+                <div
+                  key={m.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 0",
+                    borderBottom: "0.5px solid var(--border)",
+                  }}
+                >
+                  <Avatar tier={m.tier} photo={m.photo} size={24} />
+                  <span style={{ flex: 1, fontSize: 14 }}>{m.name}</span>
+                  <Trash2
+                    size={16}
+                    color="var(--text-danger)"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => removeMember(m.id)}
+                  />
+                </div>
+              ))}
+              {active.members.length === 0 && (
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "8px 0" }}>구성원이 없어요.</p>
+              )}
+            </div>
+
+            {showAddMember ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  autoFocus
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addMember();
+                  }}
+                  placeholder="멤버 이름"
+                  style={{ flex: 1 }}
+                />
+                <button onClick={addMember}>추가</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAddMember(true)}
+                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+              >
+                <Plus size={15} /> 멤버 추가
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {openTask && (
         <div

@@ -67,7 +67,8 @@ button:active {
   opacity: 0.85;
 }
 
-input {
+input,
+select {
   font-family: inherit;
   font-size: 14px;
   padding: 8px 10px;
@@ -78,6 +79,7 @@ input {
 }
 
 input:focus,
+select:focus,
 button:focus-visible {
   outline: 2px solid var(--text-secondary);
   outline-offset: 1px;
