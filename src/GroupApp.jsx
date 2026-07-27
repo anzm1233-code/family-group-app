@@ -165,6 +165,7 @@ function Avatar({ tier, size = 28, photo }) {
 export default function GroupApp() {
   const [groups, setGroups] = useState(INITIAL_GROUPS);
   const [view, setView] = useState("groups"); // groups | create | app
+  const [, setHistoryStack] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [tab, setTab] = useState("home");
   const [selectedDay, setSelectedDay] = useState(28);
@@ -258,13 +259,39 @@ export default function GroupApp() {
     reader.readAsDataURL(file);
   }
 
+  function pushHistory() {
+    setHistoryStack((prev) => [...prev, { view, tab, createStep }]);
+  }
+
+  function goBack() {
+    setHistoryStack((prev) => {
+      if (prev.length === 0) {
+        setView("groups");
+        return prev;
+      }
+      const last = prev[prev.length - 1];
+      setView(last.view);
+      setTab(last.tab);
+      setCreateStep(last.createStep);
+      return prev.slice(0, -1);
+    });
+  }
+
+  function goToTab(nextTab) {
+    if (tab === nextTab) return;
+    pushHistory();
+    setTab(nextTab);
+  }
+
   function openGroup(id) {
+    pushHistory();
     setActiveId(id);
     setTab("home");
     setView("app");
   }
 
   function startCreate() {
+    pushHistory();
     setCreateChoice(null);
     setNewName("");
     setCreateStep("choose");
@@ -272,6 +299,7 @@ export default function GroupApp() {
   }
 
   function pickChoice(key) {
+    pushHistory();
     setCreateChoice(key);
     setNewName(QUICK_START[key].defaultName);
     setCreateStep("name");
@@ -291,7 +319,12 @@ export default function GroupApp() {
       events: [],
     };
     setGroups((prev) => [...prev, group]);
-    openGroup(id);
+    // Skip the now-completed creation wizard steps in the back history —
+    // back from the new group should return straight to the group list.
+    setHistoryStack([{ view: "groups", tab: "home", createStep: "choose" }]);
+    setActiveId(id);
+    setTab("home");
+    setView("app");
   }
 
   function openGroupSettings() {
@@ -717,7 +750,7 @@ export default function GroupApp() {
               size={18}
               color="var(--text-secondary)"
               style={{ cursor: "pointer" }}
-              onClick={() => (createStep === "name" ? setCreateStep("choose") : setView("groups"))}
+              onClick={goBack}
             />
             <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>새 그룹 만들기</p>
           </div>
@@ -791,8 +824,8 @@ export default function GroupApp() {
   return (
     <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <ChevronLeft size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setView("groups")} />
-        <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>내 그룹</span>
+        <ChevronLeft size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goBack} />
+        <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{tab === "calendar" ? "홈" : "내 그룹"}</span>
       </div>
 
       <div
@@ -853,7 +886,7 @@ export default function GroupApp() {
 
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           <button
-            onClick={() => setTab("home")}
+            onClick={() => goToTab("home")}
             style={{
               flex: 1,
               fontSize: 13,
@@ -867,7 +900,7 @@ export default function GroupApp() {
             홈
           </button>
           <button
-            onClick={() => setTab("calendar")}
+            onClick={() => goToTab("calendar")}
             style={{
               flex: 1,
               fontSize: 13,
@@ -1135,7 +1168,7 @@ export default function GroupApp() {
                     setViewYear(2026);
                     setViewMonth(7);
                     setSelectedDay(e.date);
-                    setTab("calendar");
+                    goToTab("calendar");
                   }}
                   style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
                 >
@@ -1155,7 +1188,7 @@ export default function GroupApp() {
               ))}
             </div>
 
-            <button onClick={() => setTab("calendar")} style={{ width: "100%" }}>
+            <button onClick={() => goToTab("calendar")} style={{ width: "100%" }}>
               전체 일정 보기
             </button>
           </>
