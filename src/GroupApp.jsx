@@ -279,13 +279,45 @@ export default function GroupApp() {
     setNewTaskPrivate(false);
   }
 
-  const weeks = [
-    [null, null, null, 1, 2, 3, 4],
-    [21, 22, 23, 24, 25, 26, 27],
-    [28, 29, 30, 31, null, null, null],
-  ];
-  const dayHasEvent = (d) => (active ? active.events.filter((e) => e.date === d) : []);
-  const dayEvents = active ? active.events.filter((e) => e.date === selectedDay) : [];
+  const [viewYear, setViewYear] = useState(2026);
+  const [viewMonth, setViewMonth] = useState(7); // 1-indexed
+
+  function getWeeks(year, month) {
+    const firstDay = new Date(year, month - 1, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+    return rows;
+  }
+
+  function goPrevMonth() {
+    setViewMonth((m) => {
+      if (m === 1) {
+        setViewYear((y) => y - 1);
+        return 12;
+      }
+      return m - 1;
+    });
+  }
+
+  function goNextMonth() {
+    setViewMonth((m) => {
+      if (m === 12) {
+        setViewYear((y) => y + 1);
+        return 1;
+      }
+      return m + 1;
+    });
+  }
+
+  const weeks = getWeeks(viewYear, viewMonth);
+  const isSampleMonth = viewYear === 2026 && viewMonth === 7;
+  const dayHasEvent = (d) => (active && isSampleMonth ? active.events.filter((e) => e.date === d) : []);
+  const dayEvents = active && isSampleMonth ? active.events.filter((e) => e.date === selectedDay) : [];
 
   // ---------- GROUP LIST ----------
   if (view === "groups") {
@@ -656,9 +688,9 @@ export default function GroupApp() {
         {tab === "calendar" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <ChevronLeft size={17} color="var(--text-secondary)" />
-              <p style={{ fontWeight: 500, fontSize: 14, margin: 0 }}>2026년 7월</p>
-              <ChevronRight size={17} color="var(--text-secondary)" />
+              <ChevronLeft size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goPrevMonth} />
+              <p style={{ fontWeight: 500, fontSize: 14, margin: 0 }}>{viewYear}년 {viewMonth}월</p>
+              <ChevronRight size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goNextMonth} />
             </div>
 
             <div
@@ -713,7 +745,7 @@ export default function GroupApp() {
             </div>
 
             <div style={{ marginTop: 14, borderTop: "0.5px solid var(--border)", paddingTop: 10 }}>
-              <p style={{ fontSize: 12, fontWeight: 500, margin: "0 0 6px" }}>7월 {selectedDay}일</p>
+              <p style={{ fontSize: 12, fontWeight: 500, margin: "0 0 6px" }}>{viewMonth}월 {selectedDay}일</p>
               {dayEvents.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>일정이 없어요.</p>}
               {dayEvents.map((e) => (
                 <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4 }}>
