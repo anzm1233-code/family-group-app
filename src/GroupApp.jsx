@@ -189,6 +189,7 @@ export default function GroupApp() {
   const [draftLocation, setDraftLocation] = useState(null);
   const [draftPhotos, setDraftPhotos] = useState([]);
   const [draftPrivate, setDraftPrivate] = useState(false);
+  const [draftAssignee, setDraftAssignee] = useState(null);
 
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -357,6 +358,7 @@ export default function GroupApp() {
     setDraftLocation(t.location || null);
     setDraftPhotos(t.photos || []);
     setDraftPrivate(!!t.private);
+    setDraftAssignee(t.assignee || null);
     setShowTaskLocationInput(false);
     setTaskLocationName("");
     setTaskLocationAddress("");
@@ -378,7 +380,9 @@ export default function GroupApp() {
           : {
               ...g,
               tasks: g.tasks.map((t) =>
-                t.id === taskId ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate } : t
+                t.id === taskId
+                  ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee }
+                  : t
               ),
             }
       )
@@ -1524,8 +1528,19 @@ export default function GroupApp() {
                 <span>그룹 전체에게 알림</span>
               ) : (
                 <>
-                  <Avatar tier={memberById[openTask.assignee]?.tier ?? 0} size={18} photo={memberById[openTask.assignee]?.photo} />
-                  <span>{memberById[openTask.assignee]?.name} 담당</span>
+                  <Avatar tier={memberById[draftAssignee]?.tier ?? 0} size={18} photo={memberById[draftAssignee]?.photo} />
+                  <select
+                    value={draftAssignee ?? ""}
+                    onChange={(e) => setDraftAssignee(e.target.value)}
+                    style={{ fontSize: 13, padding: "3px 6px" }}
+                  >
+                    {active.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span>담당</span>
                 </>
               )}
               <span style={{ color: "var(--text-muted)" }}>· {openTask.due}</span>
