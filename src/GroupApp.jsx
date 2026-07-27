@@ -172,11 +172,18 @@ export default function GroupApp() {
   const [newTaskPrivate, setNewTaskPrivate] = useState(false);
   const [newTaskAssignee, setNewTaskAssignee] = useState(null);
   const [newTaskPhotos, setNewTaskPhotos] = useState([]);
+  const [showNewTaskLocation, setShowNewTaskLocation] = useState(false);
+  const [newTaskLocationName, setNewTaskLocationName] = useState("");
+  const [newTaskLocationAddress, setNewTaskLocationAddress] = useState("");
 
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [tempAmPm, setTempAmPm] = useState("오전");
   const [tempHour, setTempHour] = useState(12);
   const [tempMinute, setTempMinute] = useState(0);
+
+  const [showTaskLocationInput, setShowTaskLocationInput] = useState(false);
+  const [taskLocationName, setTaskLocationName] = useState("");
+  const [taskLocationAddress, setTaskLocationAddress] = useState("");
 
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -321,6 +328,34 @@ export default function GroupApp() {
     setOpenTask((prev) => (prev && prev.id === id ? { ...prev, done: !prev.done } : prev));
   }
 
+  function toggleTaskPrivate(id) {
+    setGroups((prev) =>
+      prev.map((g) => (g.id !== activeId ? g : { ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, private: !t.private } : t)) }))
+    );
+    setOpenTask((prev) => (prev && prev.id === id ? { ...prev, private: !prev.private } : prev));
+  }
+
+  function setTaskLocation(id, location) {
+    setGroups((prev) =>
+      prev.map((g) => (g.id !== activeId ? g : { ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, location } : t)) }))
+    );
+    setOpenTask((prev) => (prev && prev.id === id ? { ...prev, location } : prev));
+  }
+
+  function openTaskDetail(t) {
+    setOpenTask(t);
+    setShowTaskLocationInput(false);
+    setTaskLocationName("");
+    setTaskLocationAddress("");
+  }
+
+  function closeTaskDetail() {
+    setOpenTask(null);
+    setShowTaskLocationInput(false);
+    setTaskLocationName("");
+    setTaskLocationAddress("");
+  }
+
   function taskDay(t) {
     const m = t.due.match(/\/(\d+)/);
     return m ? parseInt(m[1], 10) : null;
@@ -395,7 +430,9 @@ export default function GroupApp() {
                   assignee: newTaskBroadcast ? null : selectedAssignee || null,
                   due: newTaskTime ? `${todayMonth}/${today} ${newTaskTime}` : `${todayMonth}/${today}`,
                   done: false,
-                  location: null,
+                  location: newTaskLocationAddress.trim()
+                    ? { name: newTaskLocationName.trim() || newTaskLocationAddress.trim(), address: newTaskLocationAddress.trim() }
+                    : null,
                   broadcast: newTaskBroadcast,
                   private: newTaskPrivate,
                   photos: newTaskPhotos,
@@ -409,6 +446,9 @@ export default function GroupApp() {
     setNewTaskBroadcast(false);
     setNewTaskPrivate(false);
     setNewTaskPhotos([]);
+    setShowNewTaskLocation(false);
+    setNewTaskLocationName("");
+    setNewTaskLocationAddress("");
   }
 
   const newTaskPhotoInputRef = useRef(null);
@@ -765,7 +805,7 @@ export default function GroupApp() {
                 .map((t) => (
                 <div
                   key={t.id}
-                  onClick={() => setOpenTask(t)}
+                  onClick={() => openTaskDetail(t)}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -880,6 +920,40 @@ export default function GroupApp() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {showNewTaskLocation ? (
+                <>
+                  <input
+                    value={newTaskLocationName}
+                    onChange={(e) => setNewTaskLocationName(e.target.value)}
+                    placeholder="장소 이름"
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    value={newTaskLocationAddress}
+                    onChange={(e) => setNewTaskLocationAddress(e.target.value)}
+                    placeholder="주소"
+                    style={{ flex: 1 }}
+                  />
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowNewTaskLocation(true)}
+                  style={{
+                    fontSize: 12,
+                    padding: "6px 10px",
+                    background: "transparent",
+                    border: "0.5px dashed var(--border-strong)",
+                    color: "var(--text-secondary)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <MapPin size={13} /> 주소 추가
+                </button>
+              )}
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
               {newTaskPhotos.map((src, idx) => (
@@ -1249,7 +1323,7 @@ export default function GroupApp() {
             justifyContent: "center",
             zIndex: 10,
           }}
-          onClick={() => setOpenTask(null)}
+          onClick={closeTaskDetail}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1263,7 +1337,7 @@ export default function GroupApp() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>{openTask.broadcast ? "전체 공지" : "할일 상세"}</p>
-              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setOpenTask(null)} />
+              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeTaskDetail} />
             </div>
 
             <p style={{ fontSize: 17, fontWeight: 500, margin: "0 0 4px" }}>{openTask.title}</p>
@@ -1303,6 +1377,58 @@ export default function GroupApp() {
               </div>
             )}
 
+            {!openTask.location && (
+              <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
+                <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                  <MapPin size={14} /> 장소
+                </p>
+                {showTaskLocationInput ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <input
+                      value={taskLocationName}
+                      onChange={(e) => setTaskLocationName(e.target.value)}
+                      placeholder="장소 이름"
+                    />
+                    <input
+                      value={taskLocationAddress}
+                      onChange={(e) => setTaskLocationAddress(e.target.value)}
+                      placeholder="주소"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!taskLocationAddress.trim()) return;
+                        setTaskLocation(openTask.id, {
+                          name: taskLocationName.trim() || taskLocationAddress.trim(),
+                          address: taskLocationAddress.trim(),
+                        });
+                        setShowTaskLocationInput(false);
+                        setTaskLocationName("");
+                        setTaskLocationAddress("");
+                      }}
+                    >
+                      저장
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowTaskLocationInput(true)}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      background: "transparent",
+                      border: "0.5px dashed var(--border-strong)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    <Plus size={15} /> 주소 추가
+                  </button>
+                )}
+              </div>
+            )}
+
             <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
               <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
                 <Camera size={14} /> 첨부 사진
@@ -1338,6 +1464,13 @@ export default function GroupApp() {
               <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
                 <input type="checkbox" checked={openTask.done} onChange={() => toggleTask(openTask.id)} />
                 완료로 표시
+              </label>
+            )}
+
+            {!openTask.broadcast && (
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, marginBottom: 12 }}>
+                <input type="checkbox" checked={!!openTask.private} onChange={() => toggleTaskPrivate(openTask.id)} />
+                나만 보기 (해제하면 전체 일정으로 전환돼요)
               </label>
             )}
 
