@@ -185,14 +185,21 @@ export default function GroupApp() {
   const [taskLocationName, setTaskLocationName] = useState("");
   const [taskLocationAddress, setTaskLocationAddress] = useState("");
 
+  // draft edits for the open task detail modal — only committed to `groups` on 수정 완료
+  const [draftLocation, setDraftLocation] = useState(null);
+  const [draftPhotos, setDraftPhotos] = useState([]);
+  const [draftPrivate, setDraftPrivate] = useState(false);
+
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
+  const [draftMembers, setDraftMembers] = useState([]);
 
   const [today, setToday] = useState(28);
   const [todayMonth, setTodayMonth] = useState(7);
   const [todayYear, setTodayYear] = useState(2026);
   const [toast, setToast] = useState(null); // { message, undo }
+  const [carryOverExcluded, setCarryOverExcluded] = useState(() => new Set());
 
   const active = groups.find((g) => g.id === activeId);
   const memberById = active ? Object.fromEntries(active.members.map((m) => [m.id, m])) : {};
@@ -234,18 +241,9 @@ export default function GroupApp() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !openTask) return;
-    const taskId = openTask.id;
     const reader = new FileReader();
     reader.onload = () => {
-      const photoUrl = reader.result;
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.id !== activeId
-            ? g
-            : { ...g, tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, photos: [...(t.photos || []), photoUrl] } : t)) }
-        )
-      );
-      setOpenTask((prev) => (prev && prev.id === taskId ? { ...prev, photos: [...(prev.photos || []), photoUrl] } : prev));
+      setDraftPhotos((prev) => [...prev, reader.result]);
     };
     reader.readAsDataURL(file);
   }
@@ -286,29 +284,46 @@ export default function GroupApp() {
     openGroup(id);
   }
 
-  function addMember() {
+  function openGroupSettings() {
+    setDraftMembers(active.members);
+    setShowAddMember(false);
+    setNewMemberName("");
+    setGroupSettingsOpen(true);
+  }
+
+  function closeGroupSettings() {
+    setGroupSettingsOpen(false);
+    setShowAddMember(false);
+    setNewMemberName("");
+  }
+
+  function addDraftMember() {
     if (!newMemberName.trim()) return;
     const id = "m" + Date.now();
-    setGroups((prev) =>
-      prev.map((g) => (g.id !== activeId ? g : { ...g, members: [...g.members, { id, name: newMemberName.trim(), tier: 0 }] }))
-    );
+    setDraftMembers((prev) => [...prev, { id, name: newMemberName.trim(), tier: 0 }]);
     setNewMemberName("");
     setShowAddMember(false);
   }
 
-  function removeMember(memberId) {
+  function removeDraftMember(memberId) {
+    setDraftMembers((prev) => prev.filter((m) => m.id !== memberId));
+  }
+
+  function saveGroupSettings() {
+    const removedIds = active.members.filter((m) => !draftMembers.some((dm) => dm.id === m.id)).map((m) => m.id);
     setGroups((prev) =>
       prev.map((g) =>
         g.id !== activeId
           ? g
           : {
               ...g,
-              members: g.members.filter((m) => m.id !== memberId),
-              tasks: g.tasks.map((t) => (t.assignee === memberId ? { ...t, assignee: null } : t)),
-              events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => a !== memberId) })),
+              members: draftMembers,
+              tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
+              events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
             }
       )
     );
+    closeGroupSettings();
   }
 
   function toggleEventNotify(eventId) {
@@ -328,22 +343,20 @@ export default function GroupApp() {
     setOpenTask((prev) => (prev && prev.id === id ? { ...prev, done: !prev.done } : prev));
   }
 
-  function toggleTaskPrivate(id) {
-    setGroups((prev) =>
-      prev.map((g) => (g.id !== activeId ? g : { ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, private: !t.private } : t)) }))
-    );
-    setOpenTask((prev) => (prev && prev.id === id ? { ...prev, private: !prev.private } : prev));
-  }
-
-  function setTaskLocation(id, location) {
-    setGroups((prev) =>
-      prev.map((g) => (g.id !== activeId ? g : { ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, location } : t)) }))
-    );
-    setOpenTask((prev) => (prev && prev.id === id ? { ...prev, location } : prev));
+  function toggleCarryOverSelection(id) {
+    setCarryOverExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   function openTaskDetail(t) {
     setOpenTask(t);
+    setDraftLocation(t.location || null);
+    setDraftPhotos(t.photos || []);
+    setDraftPrivate(!!t.private);
     setShowTaskLocationInput(false);
     setTaskLocationName("");
     setTaskLocationAddress("");
@@ -354,6 +367,23 @@ export default function GroupApp() {
     setShowTaskLocationInput(false);
     setTaskLocationName("");
     setTaskLocationAddress("");
+  }
+
+  function saveTaskDetailEdits() {
+    const taskId = openTask.id;
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id !== activeId
+          ? g
+          : {
+              ...g,
+              tasks: g.tasks.map((t) =>
+                t.id === taskId ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate } : t
+              ),
+            }
+      )
+    );
+    closeTaskDetail();
   }
 
   function taskDay(t) {
@@ -402,7 +432,7 @@ export default function GroupApp() {
           : {
               ...g,
               tasks: g.tasks.map((t) => {
-                if (t.broadcast || t.done || taskDay(t) !== today) return t;
+                if (t.broadcast || t.done || taskDay(t) !== today || carryOverExcluded.has(t.id)) return t;
                 const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
                 return { ...t, due: `${nextMonth}/${nextDay}${timePart}` };
               }),
@@ -412,6 +442,7 @@ export default function GroupApp() {
     setToday(nextDay);
     setTodayMonth(nextMonth);
     setTodayYear(nextYear);
+    setCarryOverExcluded(new Set());
   }
 
   function addTask() {
@@ -747,7 +778,7 @@ export default function GroupApp() {
             size={19}
             color="var(--text-secondary)"
             style={{ cursor: "pointer" }}
-            onClick={() => setGroupSettingsOpen(true)}
+            onClick={openGroupSettings}
           />
         </div>
 
@@ -850,11 +881,8 @@ export default function GroupApp() {
                     opacity: t.private ? 0.85 : 1,
                   }}
                 >
-                  {t.broadcast ? (
-                    <Megaphone size={16} color={active.accent} />
-                  ) : (
-                    <input type="checkbox" checked={t.done} onClick={(e) => e.stopPropagation()} onChange={() => toggleTask(t.id)} />
-                  )}
+                  <input type="checkbox" checked={t.done} onClick={(e) => e.stopPropagation()} onChange={() => toggleTask(t.id)} />
+                  {t.broadcast && <Megaphone size={16} color={active.accent} />}
                   <span
                     style={{
                       fontSize: 14,
@@ -874,6 +902,16 @@ export default function GroupApp() {
                   <span style={{ fontSize: 11, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
                     {t.broadcast ? "전체 공지" : t.private ? "나만 보기" : memberById[t.assignee]?.name}
                   </span>
+                  {!t.broadcast && !t.done && taskDay(t) === today && (
+                    <input
+                      type="checkbox"
+                      checked={!carryOverExcluded.has(t.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleCarryOverSelection(t.id)}
+                      title="다음 날로 넘기기 선택"
+                      style={{ accentColor: active.accent }}
+                    />
+                  )}
                   <Trash2
                     size={14}
                     color="var(--text-muted)"
@@ -1069,8 +1107,9 @@ export default function GroupApp() {
                   <div style={{ flex: 1 }}>{e.title}</div>
                   <Bell
                     size={13}
-                    color={e.notify === false ? "var(--border-strong)" : "var(--text-muted)"}
-                    style={{ cursor: "pointer", opacity: e.notify === false ? 0.5 : 1 }}
+                    color={e.notify === false ? "var(--border-strong)" : active.accent}
+                    fill={e.notify === false ? "none" : active.accent}
+                    style={{ cursor: "pointer", opacity: e.notify === false ? 0.6 : 1 }}
                     onClick={(ev) => {
                       ev.stopPropagation();
                       toggleEventNotify(e.id);
@@ -1291,7 +1330,7 @@ export default function GroupApp() {
               </button>
             </div>
             <button onClick={() => setShowNewTaskLocation(false)} style={{ width: "100%" }}>
-              완료
+              확인
             </button>
           </div>
         </div>
@@ -1321,7 +1360,7 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>{openTask.location ? "장소 수정" : "장소 검색"}</p>
+              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>{draftLocation ? "장소 수정" : "장소 검색"}</p>
               <X
                 size={18}
                 color="var(--text-secondary)"
@@ -1352,16 +1391,14 @@ export default function GroupApp() {
               onClick={() => {
                 const name = taskLocationName.trim();
                 const address = taskLocationAddress.trim();
-                if (name || address) {
-                  setTaskLocation(openTask.id, { name: name || address, address });
-                }
+                setDraftLocation(name || address ? { name: name || address, address } : null);
                 setShowTaskLocationInput(false);
                 setTaskLocationName("");
                 setTaskLocationAddress("");
               }}
               style={{ width: "100%" }}
             >
-              완료
+              확인
             </button>
           </div>
         </div>
@@ -1378,11 +1415,7 @@ export default function GroupApp() {
             justifyContent: "center",
             zIndex: 10,
           }}
-          onClick={() => {
-            setGroupSettingsOpen(false);
-            setShowAddMember(false);
-            setNewMemberName("");
-          }}
+          onClick={closeGroupSettings}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1396,21 +1429,12 @@ export default function GroupApp() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>그룹 설정</p>
-              <X
-                size={18}
-                color="var(--text-secondary)"
-                style={{ cursor: "pointer" }}
-                onClick={() => {
-                  setGroupSettingsOpen(false);
-                  setShowAddMember(false);
-                  setNewMemberName("");
-                }}
-              />
+              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeGroupSettings} />
             </div>
 
-            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({active.members.length}명)</p>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
             <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
-              {active.members.map((m) => (
+              {draftMembers.map((m) => (
                 <div
                   key={m.id}
                   style={{
@@ -1427,37 +1451,41 @@ export default function GroupApp() {
                     size={16}
                     color="var(--text-danger)"
                     style={{ cursor: "pointer" }}
-                    onClick={() => removeMember(m.id)}
+                    onClick={() => removeDraftMember(m.id)}
                   />
                 </div>
               ))}
-              {active.members.length === 0 && (
+              {draftMembers.length === 0 && (
                 <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "8px 0" }}>구성원이 없어요.</p>
               )}
             </div>
 
             {showAddMember ? (
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 <input
                   autoFocus
                   value={newMemberName}
                   onChange={(e) => setNewMemberName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") addMember();
+                    if (e.key === "Enter") addDraftMember();
                   }}
                   placeholder="멤버 이름"
                   style={{ flex: 1 }}
                 />
-                <button onClick={addMember}>추가</button>
+                <button onClick={addDraftMember}>추가</button>
               </div>
             ) : (
               <button
                 onClick={() => setShowAddMember(true)}
-                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ width: "100%", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <Plus size={15} /> 멤버 추가
               </button>
             )}
+
+            <button onClick={saveGroupSettings} style={{ width: "100%" }}>
+              수정 완료
+            </button>
           </div>
         </div>
       )}
@@ -1503,29 +1531,29 @@ export default function GroupApp() {
               <span style={{ color: "var(--text-muted)" }}>· {openTask.due}</span>
             </div>
 
-            {openTask.location && (
+            {draftLocation && (
               <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
                 <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
                   <MapPin size={14} /> 장소
                 </p>
                 <div
                   onClick={() => {
-                    setTaskLocationName(openTask.location.name || "");
-                    setTaskLocationAddress(openTask.location.address || "");
+                    setTaskLocationName(draftLocation.name || "");
+                    setTaskLocationAddress(draftLocation.address || "");
                     setShowTaskLocationInput(true);
                   }}
                   style={{ border: "0.5px solid var(--border)", borderRadius: 8, padding: "10px 12px", cursor: "pointer" }}
                 >
-                  <p style={{ fontSize: 14, margin: "0 0 2px" }}>{openTask.location.name}</p>
-                  {openTask.location.address && (
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{openTask.location.address}</p>
+                  <p style={{ fontSize: 14, margin: "0 0 2px" }}>{draftLocation.name}</p>
+                  {draftLocation.address && (
+                    <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{draftLocation.address}</p>
                   )}
                 </div>
-                {openTask.location.address && (
+                {draftLocation.address && (
                   <button
                     onClick={() =>
                       window.open(
-                        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(openTask.location.address)}`,
+                        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(draftLocation.address)}`,
                         "_blank",
                         "noopener,noreferrer"
                       )
@@ -1538,7 +1566,7 @@ export default function GroupApp() {
               </div>
             )}
 
-            {!openTask.location && (
+            {!draftLocation && (
               <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
                 <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
                   <MapPin size={14} /> 장소
@@ -1570,7 +1598,7 @@ export default function GroupApp() {
                 <Camera size={14} /> 첨부 사진
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {(openTask.photos || []).map((src, idx) => (
+                {draftPhotos.map((src, idx) => (
                   <img
                     key={idx}
                     src={src}
@@ -1596,19 +1624,21 @@ export default function GroupApp() {
               </div>
             </div>
 
-            {!openTask.broadcast && (
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
-                <input type="checkbox" checked={openTask.done} onChange={() => toggleTask(openTask.id)} />
-                완료로 표시
-              </label>
-            )}
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
+              <input type="checkbox" checked={openTask.done} onChange={() => toggleTask(openTask.id)} />
+              완료로 표시
+            </label>
 
             {!openTask.broadcast && (
               <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, marginBottom: 12 }}>
-                <input type="checkbox" checked={!!openTask.private} onChange={() => toggleTaskPrivate(openTask.id)} />
+                <input type="checkbox" checked={draftPrivate} onChange={() => setDraftPrivate((prev) => !prev)} />
                 나만 보기 (해제하면 전체 일정으로 전환돼요)
               </label>
             )}
+
+            <button onClick={saveTaskDetailEdits} style={{ width: "100%", marginBottom: 12 }}>
+              수정 완료
+            </button>
 
             <button
               onClick={() => deleteTask(openTask)}
