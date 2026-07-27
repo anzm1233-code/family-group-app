@@ -18,8 +18,26 @@ npm run build
 npm run preview
 ```
 
-## 배포
+## 배포 (Netlify)
 
-`main` 브랜치와 `claude/react-webapp-setup-deploy-kzcw75` 브랜치에 push하면 GitHub Actions(`.github/workflows/deploy.yml`)가 자동으로 빌드 후 GitHub Pages에 배포합니다.
+이 저장소는 비공개로 유지하면서 Netlify에 배포합니다. 빌드 설정은 `netlify.toml`에 정의되어 있습니다.
 
-배포 주소: `https://<github-user>.github.io/family-group-app/`
+- Build command: `npm run build`
+- Publish directory: `dist`
+
+### Netlify 사이트 연결 (최초 1회)
+
+1. https://app.netlify.com 에서 **Add new site → Import an existing project → Deploy with GitHub**
+2. Netlify GitHub App 권한 화면에서 `anzm1233-code/family-group-app` 저장소를 (비공개 상태로) 선택해 접근 권한 부여
+3. 브랜치로 `claude/react-webapp-setup-deploy-kzcw75` (또는 이후 병합할 `main`) 선택
+4. Build command / Publish directory는 `netlify.toml`에서 자동으로 읽어옵니다
+5. Deploy site 클릭 — 이후로는 해당 브랜치에 push할 때마다 자동으로 재배포됩니다
+
+### 로컬에서 수동 배포
+
+```bash
+npm run build
+npx netlify-cli deploy --prod --dir=dist
+```
+
+(Netlify CLI 로그인이 필요합니다: `npx netlify-cli login`)
