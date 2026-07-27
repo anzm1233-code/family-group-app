@@ -171,6 +171,12 @@ export default function GroupApp() {
   const [newTaskBroadcast, setNewTaskBroadcast] = useState(false);
   const [newTaskPrivate, setNewTaskPrivate] = useState(false);
   const [newTaskAssignee, setNewTaskAssignee] = useState(null);
+  const [newTaskPhotos, setNewTaskPhotos] = useState([]);
+
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [tempAmPm, setTempAmPm] = useState("오전");
+  const [tempHour, setTempHour] = useState(12);
+  const [tempMinute, setTempMinute] = useState(0);
 
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -392,6 +398,7 @@ export default function GroupApp() {
                   location: null,
                   broadcast: newTaskBroadcast,
                   private: newTaskPrivate,
+                  photos: newTaskPhotos,
                 },
               ],
             }
@@ -401,6 +408,59 @@ export default function GroupApp() {
     setNewTaskTime("");
     setNewTaskBroadcast(false);
     setNewTaskPrivate(false);
+    setNewTaskPhotos([]);
+  }
+
+  const newTaskPhotoInputRef = useRef(null);
+
+  function handleNewTaskPhotoFileChange(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setNewTaskPhotos((prev) => [...prev, reader.result]);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function from24Hour(hhmm) {
+    const [hStr, mStr] = hhmm.split(":");
+    const h = parseInt(hStr, 10);
+    const minute = parseInt(mStr, 10);
+    const ampm = h >= 12 ? "오후" : "오전";
+    let hour12 = h % 12;
+    if (hour12 === 0) hour12 = 12;
+    return { ampm, hour12, minute };
+  }
+
+  function formatDisplayTime(hhmm) {
+    const { ampm, hour12, minute } = from24Hour(hhmm);
+    return `${ampm} ${hour12}:${String(minute).padStart(2, "0")}`;
+  }
+
+  function openTimePicker() {
+    if (newTaskTime) {
+      const { ampm, hour12, minute } = from24Hour(newTaskTime);
+      setTempAmPm(ampm);
+      setTempHour(hour12);
+      setTempMinute(minute);
+    } else {
+      setTempAmPm("오전");
+      setTempHour(12);
+      setTempMinute(0);
+    }
+    setTimePickerOpen(true);
+  }
+
+  function confirmTimePicker() {
+    let h24 = tempHour % 12;
+    if (tempAmPm === "오후") h24 += 12;
+    const hh = String(h24).padStart(2, "0");
+    const mm = String(tempMinute).padStart(2, "0");
+    setNewTaskTime(`${hh}:${mm}`);
+    setTimePickerOpen(false);
   }
 
   const [viewYear, setViewYear] = useState(2026);
@@ -787,12 +847,25 @@ export default function GroupApp() {
                 placeholder="할일 또는 공지 내용"
                 style={{ flex: 1 }}
               />
-              <input
-                type="time"
-                value={newTaskTime}
-                onChange={(e) => setNewTaskTime(e.target.value)}
-                style={{ width: 110 }}
-              />
+              <div
+                onClick={openTimePicker}
+                style={{
+                  minWidth: 130,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "0.5px solid var(--border)",
+                  background: "var(--surface-2)",
+                  color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {newTaskTime ? formatDisplayTime(newTaskTime) : "시간 선택"}
+              </div>
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
               <select
@@ -807,6 +880,51 @@ export default function GroupApp() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+              {newTaskPhotos.map((src, idx) => (
+                <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
+                  <img
+                    src={src}
+                    alt=""
+                    style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)" }}
+                  />
+                  <div
+                    onClick={() => setNewTaskPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                    style={{
+                      position: "absolute",
+                      top: -5,
+                      right: -5,
+                      width: 15,
+                      height: 15,
+                      borderRadius: "50%",
+                      background: "var(--text-primary)",
+                      color: "var(--surface-2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <X size={9} />
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => newTaskPhotoInputRef.current?.click()}
+                style={{
+                  fontSize: 12,
+                  padding: "6px 10px",
+                  background: "transparent",
+                  border: "0.5px dashed var(--border-strong)",
+                  color: "var(--text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Plus size={13} /> 사진 추가
+              </button>
             </div>
             <div style={{ display: "flex", gap: 16, marginBottom: 10, marginTop: -2 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
@@ -961,6 +1079,69 @@ export default function GroupApp() {
         style={{ display: "none" }}
         onChange={handleTaskPhotoFileChange}
       />
+
+      <input
+        ref={newTaskPhotoInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: "none" }}
+        onChange={handleNewTaskPhotoFileChange}
+      />
+
+      {timePickerOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={() => setTimePickerOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 280,
+              maxWidth: "90vw",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>시간 선택</p>
+              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setTimePickerOpen(false)} />
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+              <select value={tempAmPm} onChange={(e) => setTempAmPm(e.target.value)} style={{ flex: 1 }}>
+                <option value="오전">오전</option>
+                <option value="오후">오후</option>
+              </select>
+              <select value={tempHour} onChange={(e) => setTempHour(Number(e.target.value))} style={{ flex: 1 }}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                  <option key={h} value={h}>
+                    {h}시
+                  </option>
+                ))}
+              </select>
+              <select value={tempMinute} onChange={(e) => setTempMinute(Number(e.target.value))} style={{ flex: 1 }}>
+                {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                  <option key={m} value={m}>
+                    {String(m).padStart(2, "0")}분
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button onClick={confirmTimePicker} style={{ width: "100%" }}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
 
       {groupSettingsOpen && (
         <div
