@@ -337,6 +337,7 @@ export default function GroupApp() {
   const [newMemberName, setNewMemberName] = useState("");
   const [draftMembers, setDraftMembers] = useState([]);
   const [draftGroupName, setDraftGroupName] = useState("");
+  const [confirmRemoveMemberId, setConfirmRemoveMemberId] = useState(null);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -662,6 +663,7 @@ export default function GroupApp() {
     setDraftGroupName(active.name);
     setShowAddMember(false);
     setNewMemberName("");
+    setConfirmRemoveMemberId(null);
     setDeleteConfirmOpen(false);
     setDeleteConfirmText("");
     setDeleteError(null);
@@ -672,6 +674,7 @@ export default function GroupApp() {
     setGroupSettingsOpen(false);
     setShowAddMember(false);
     setNewMemberName("");
+    setConfirmRemoveMemberId(null);
     setDeleteConfirmOpen(false);
     setDeleteConfirmText("");
     setDeleteError(null);
@@ -2307,12 +2310,33 @@ export default function GroupApp() {
                 >
                   <Avatar tier={m.tier} photo={m.photo} size={24} />
                   <span style={{ flex: 1, fontSize: 14 }}>{m.name}</span>
-                  <Trash2
-                    size={16}
-                    color="var(--text-danger)"
-                    style={{ cursor: "pointer" }}
-                    onClick={() => removeDraftMember(m.id)}
-                  />
+                  {confirmRemoveMemberId === m.id ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 12, color: "var(--text-danger)" }}>삭제할까요?</span>
+                      <button
+                        onClick={() => {
+                          removeDraftMember(m.id);
+                          setConfirmRemoveMemberId(null);
+                        }}
+                        style={{ fontSize: 12, padding: "4px 8px", background: "var(--text-danger)", color: "#fff", border: "none" }}
+                      >
+                        삭제
+                      </button>
+                      <button
+                        onClick={() => setConfirmRemoveMemberId(null)}
+                        style={{ fontSize: 12, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)" }}
+                      >
+                        취소
+                      </button>
+                    </div>
+                  ) : (
+                    <Trash2
+                      size={16}
+                      color="var(--text-danger)"
+                      style={{ cursor: "pointer" }}
+                      onClick={() => setConfirmRemoveMemberId(m.id)}
+                    />
+                  )}
                 </div>
               ))}
               {draftMembers.length === 0 && (
