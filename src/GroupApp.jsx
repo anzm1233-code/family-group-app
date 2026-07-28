@@ -19,6 +19,16 @@ import {
 } from "lucide-react";
 import KoreanLunarCalendar from "korean-lunar-calendar";
 
+// Monotonically increasing, so ids stay unique even if two are requested in
+// the same millisecond (e.g. an eager double-click/double-tap on "추가").
+// Plain Date.now() can collide there, which produces duplicate React `key`s
+// and crashes reconciliation with "Failed to execute 'removeChild'...".
+let lastGeneratedId = 0;
+function generateLocalId() {
+  lastGeneratedId = Math.max(Date.now(), lastGeneratedId + 1);
+  return lastGeneratedId;
+}
+
 function getLunarLabel(year, month, day) {
   const cal = new KoreanLunarCalendar();
   if (!cal.setSolarDate(year, month, day)) return null;
@@ -501,7 +511,7 @@ export default function GroupApp() {
 
   function addDraftMember() {
     if (!newMemberName.trim()) return;
-    const id = "m" + Date.now();
+    const id = "m" + generateLocalId();
     setDraftMembers((prev) => [...prev, { id, name: newMemberName.trim(), tier: 0 }]);
     setNewMemberName("");
     setShowAddMember(false);
@@ -692,7 +702,7 @@ export default function GroupApp() {
       tasks: [
         ...g.tasks,
         {
-          id: Date.now(),
+          id: generateLocalId(),
           title: newTaskTitle,
           assignee: newTaskBroadcast ? null : selectedAssignee || null,
           due: newTaskTime ? `${dueMonth}/${dueDay} ${newTaskTime}` : `${dueMonth}/${dueDay}`,
