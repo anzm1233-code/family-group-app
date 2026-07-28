@@ -16,6 +16,7 @@ import {
   Users,
   Lock,
   Trash2,
+  Share2,
 } from "lucide-react";
 import KoreanLunarCalendar from "korean-lunar-calendar";
 
@@ -493,6 +494,31 @@ export default function GroupApp() {
     } finally {
       setCreateBusy(false);
     }
+  }
+
+  async function copyGroupLink(url) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast({ message: "링크가 복사됐어요", undo: null });
+    } catch {
+      setToast({ message: `복사에 실패했어요. 직접 복사해 주세요: ${url}`, undo: null });
+    }
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  // Same link for every group type — anyone who opens it sees and edits the
+  // same shared data, so "초대" is just "share this URL".
+  async function shareGroupLink() {
+    const url = `${window.location.origin}/g/${active.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: active.name, text: `${active.name} 그룹에 참여해 보세요`, url });
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") return; // user closed the share sheet — not an error
+      }
+    }
+    copyGroupLink(url);
   }
 
   function openGroupSettings() {
@@ -1258,12 +1284,21 @@ export default function GroupApp() {
               {active.members.length}명
             </span>
           </div>
-          <Settings
-            size={19}
-            color="var(--text-secondary)"
-            style={{ cursor: "pointer" }}
-            onClick={openGroupSettings}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <Share2
+              size={19}
+              color="var(--text-secondary)"
+              style={{ cursor: "pointer" }}
+              onClick={shareGroupLink}
+              title="그룹 초대/공유하기"
+            />
+            <Settings
+              size={19}
+              color="var(--text-secondary)"
+              style={{ cursor: "pointer" }}
+              onClick={openGroupSettings}
+            />
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -1850,8 +1885,24 @@ export default function GroupApp() {
               value={draftGroupName}
               onChange={(e) => setDraftGroupName(e.target.value)}
               placeholder="그룹 이름을 입력하세요"
-              style={{ width: "100%", marginBottom: 16 }}
+              style={{ width: "100%", marginBottom: 12 }}
             />
+            <button
+              onClick={shareGroupLink}
+              style={{
+                width: "100%",
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                background: "transparent",
+                border: "0.5px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <Share2 size={15} /> 그룹 초대/공유하기
+            </button>
 
             <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
             <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
