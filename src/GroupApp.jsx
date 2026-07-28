@@ -1247,8 +1247,9 @@ export default function GroupApp() {
         >
           <p style={{ fontWeight: 500, fontSize: 16, margin: "0 0 14px" }}>내 그룹</p>
           <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 14px" }}>
-            로그인 없이 링크만으로 함께 써요. 이 목록은 이 브라우저에서 만들었거나 열어본 그룹의 바로가기예요 — 실제 데이터는
-            서버에 저장되고, 링크를 받은 사람은 누구나 같은 그룹을 보고 수정할 수 있어요.
+            로그인 없이 링크만으로 함께 써요. 그룹 안 내용은 링크를 받은 멤버들과 함께 보고 수정할 수 있지만, 이
+            "내 그룹" 목록은 이 브라우저에만 저장되는 개인 바로가기라 다른 사람이 내 그룹 전체 목록을 볼 수는
+            없어요.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
             {bookmarks.map((b) => (
