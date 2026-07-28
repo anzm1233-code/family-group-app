@@ -26,6 +26,43 @@ function getLunarLabel(year, month, day) {
   return `음력 ${lunar.month}월 ${lunar.day}일${lunar.intercalation ? " (윤달)" : ""}`;
 }
 
+// Only actual user-set event notification choices survive a reload — everything
+// else (checkboxes, drafts, etc.) intentionally resets to its default each time.
+const NOTIFY_STORAGE_KEY = "familyGroupApp:eventNotifications";
+
+function loadNotifyPrefs() {
+  try {
+    const raw = localStorage.getItem(NOTIFY_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveNotifyPref(groupId, eventId, notify) {
+  try {
+    const prefs = loadNotifyPrefs();
+    prefs[groupId] = { ...(prefs[groupId] || {}), [eventId]: notify };
+    localStorage.setItem(NOTIFY_STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
+// Registering an event implies wanting a reminder for it, so notifications
+// default to on; a user can still switch a specific event off, and that
+// explicit choice (on or off) is what persists across reloads.
+function applyNotifyPrefs(groups) {
+  const prefs = loadNotifyPrefs();
+  return groups.map((g) => ({
+    ...g,
+    events: g.events.map((e) => {
+      const stored = prefs[g.id]?.[e.id];
+      return { ...e, notify: stored === undefined ? true : stored };
+    }),
+  }));
+}
+
 const QUICK_START = {
   family: {
     label: "가족으로 시작",
@@ -163,7 +200,7 @@ function Avatar({ tier, size = 28, photo }) {
 }
 
 export default function GroupApp() {
-  const [groups, setGroups] = useState(INITIAL_GROUPS);
+  const [groups, setGroups] = useState(() => applyNotifyPrefs(INITIAL_GROUPS));
   const [view, setView] = useState("groups"); // groups | create | app
   const [, setHistoryStack] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -200,17 +237,21 @@ export default function GroupApp() {
   const [draftPhotos, setDraftPhotos] = useState([]);
   const [draftPrivate, setDraftPrivate] = useState(false);
   const [draftAssignee, setDraftAssignee] = useState(null);
+  const [draftDueDate, setDraftDueDate] = useState(""); // yyyy-mm-dd, for <input type="date">
+  const [draftDueTime, setDraftDueTime] = useState(""); // HH:MM, for <input type="time">
 
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [draftMembers, setDraftMembers] = useState([]);
+  const [draftGroupName, setDraftGroupName] = useState("");
 
   const [today, setToday] = useState(28);
   const [todayMonth, setTodayMonth] = useState(7);
   const [todayYear, setTodayYear] = useState(2026);
   const [toast, setToast] = useState(null); // { message, undo }
-  const [carryOverExcluded, setCarryOverExcluded] = useState(() => new Set());
+  // ids the user has explicitly opted in to carry over — defaults to none selected
+  const [carryOverIncluded, setCarryOverIncluded] = useState(() => new Set());
 
   const active = groups.find((g) => g.id === activeId);
   const memberById = active ? Object.fromEntries(active.members.map((m) => [m.id, m])) : {};
@@ -329,6 +370,7 @@ export default function GroupApp() {
 
   function openGroupSettings() {
     setDraftMembers(active.members);
+    setDraftGroupName(active.name);
     setShowAddMember(false);
     setNewMemberName("");
     setGroupSettingsOpen(true);
@@ -354,12 +396,14 @@ export default function GroupApp() {
 
   function saveGroupSettings() {
     const removedIds = active.members.filter((m) => !draftMembers.some((dm) => dm.id === m.id)).map((m) => m.id);
+    const trimmedName = draftGroupName.trim();
     setGroups((prev) =>
       prev.map((g) =>
         g.id !== activeId
           ? g
           : {
               ...g,
+              name: trimmedName || g.name,
               members: draftMembers,
               tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
               events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
@@ -370,13 +414,17 @@ export default function GroupApp() {
   }
 
   function toggleEventNotify(eventId) {
+    const currentGroup = groups.find((g) => g.id === activeId);
+    const currentEvent = currentGroup?.events.find((e) => e.id === eventId);
+    const nextNotify = !currentEvent?.notify;
     setGroups((prev) =>
       prev.map((g) =>
         g.id !== activeId
           ? g
-          : { ...g, events: g.events.map((e) => (e.id === eventId ? { ...e, notify: e.notify === false ? true : false } : e)) }
+          : { ...g, events: g.events.map((e) => (e.id === eventId ? { ...e, notify: nextNotify } : e)) }
       )
     );
+    saveNotifyPref(activeId, eventId, nextNotify);
   }
 
   function toggleTask(id) {
@@ -387,7 +435,7 @@ export default function GroupApp() {
   }
 
   function toggleCarryOverSelection(id) {
-    setCarryOverExcluded((prev) => {
+    setCarryOverIncluded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -401,6 +449,12 @@ export default function GroupApp() {
     setDraftPhotos(t.photos || []);
     setDraftPrivate(!!t.private);
     setDraftAssignee(t.assignee || null);
+    const dayNum = taskDay(t);
+    const monthNum = taskMonth(t);
+    setDraftDueDate(
+      monthNum && dayNum ? `${todayYear}-${String(monthNum).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}` : ""
+    );
+    setDraftDueTime(t.due.includes(" ") ? t.due.split(" ")[1] : "");
     setShowTaskLocationInput(false);
     setTaskLocationName("");
     setTaskLocationAddress("");
@@ -415,6 +469,14 @@ export default function GroupApp() {
 
   function saveTaskDetailEdits() {
     const taskId = openTask.id;
+    let newDue = openTask.due;
+    if (draftDueDate) {
+      const [, m, d] = draftDueDate.split("-").map((v) => parseInt(v, 10));
+      newDue = draftDueTime ? `${m}/${d} ${draftDueTime}` : `${m}/${d}`;
+    } else if (draftDueTime) {
+      const datePart = openTask.due.split(" ")[0];
+      newDue = `${datePart} ${draftDueTime}`;
+    }
     setGroups((prev) =>
       prev.map((g) =>
         g.id !== activeId
@@ -423,7 +485,7 @@ export default function GroupApp() {
               ...g,
               tasks: g.tasks.map((t) =>
                 t.id === taskId
-                  ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee }
+                  ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee, due: newDue }
                   : t
               ),
             }
@@ -491,7 +553,7 @@ export default function GroupApp() {
           : {
               ...g,
               tasks: g.tasks.map((t) => {
-                if (t.broadcast || t.done || taskDay(t) !== today || carryOverExcluded.has(t.id)) return t;
+                if (t.broadcast || t.done || taskDay(t) !== today || !carryOverIncluded.has(t.id)) return t;
                 const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
                 return { ...t, due: `${nextMonth}/${nextDay}${timePart}` };
               }),
@@ -501,7 +563,7 @@ export default function GroupApp() {
     setToday(nextDay);
     setTodayMonth(nextMonth);
     setTodayYear(nextYear);
-    setCarryOverExcluded(new Set());
+    setCarryOverIncluded(new Set());
   }
 
   function addTask() {
@@ -974,7 +1036,7 @@ export default function GroupApp() {
                   {!t.broadcast && !t.done && taskDay(t) === today && (
                     <input
                       type="checkbox"
-                      checked={!carryOverExcluded.has(t.id)}
+                      checked={carryOverIncluded.has(t.id)}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => toggleCarryOverSelection(t.id)}
                       title="다음 날로 넘기기 선택"
@@ -1176,9 +1238,9 @@ export default function GroupApp() {
                   <div style={{ flex: 1 }}>{e.title}</div>
                   <Bell
                     size={13}
-                    color={e.notify === false ? "var(--border-strong)" : active.accent}
-                    fill={e.notify === false ? "none" : active.accent}
-                    style={{ cursor: "pointer", opacity: e.notify === false ? 0.6 : 1 }}
+                    color={e.notify ? active.accent : "var(--border-strong)"}
+                    fill={e.notify ? active.accent : "none"}
+                    style={{ cursor: "pointer", opacity: e.notify ? 1 : 0.6 }}
                     onClick={(ev) => {
                       ev.stopPropagation();
                       toggleEventNotify(e.id);
@@ -1540,6 +1602,14 @@ export default function GroupApp() {
               <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeGroupSettings} />
             </div>
 
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>그룹 이름</p>
+            <input
+              value={draftGroupName}
+              onChange={(e) => setDraftGroupName(e.target.value)}
+              placeholder="그룹 이름을 입력하세요"
+              style={{ width: "100%", marginBottom: 16 }}
+            />
+
             <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
             <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
               {draftMembers.map((m) => (
@@ -1627,7 +1697,7 @@ export default function GroupApp() {
             </div>
 
             <p style={{ fontSize: 17, fontWeight: 500, margin: "0 0 4px" }}>{openTask.title}</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13, color: "var(--text-secondary)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13, color: "var(--text-secondary)", flexWrap: "wrap" }}>
               {openTask.broadcast ? (
                 <span>그룹 전체에게 알림</span>
               ) : (
@@ -1647,7 +1717,19 @@ export default function GroupApp() {
                   <span>담당</span>
                 </>
               )}
-              <span style={{ color: "var(--text-muted)" }}>· {openTask.due}</span>
+              <span style={{ color: "var(--text-muted)" }}>·</span>
+              <input
+                type="date"
+                value={draftDueDate}
+                onChange={(e) => setDraftDueDate(e.target.value)}
+                style={{ fontSize: 12, padding: "3px 6px" }}
+              />
+              <input
+                type="time"
+                value={draftDueTime}
+                onChange={(e) => setDraftDueTime(e.target.value)}
+                style={{ fontSize: 12, padding: "3px 6px" }}
+              />
             </div>
 
             {draftLocation && (
@@ -1839,7 +1921,7 @@ export default function GroupApp() {
             >
               <input
                 type="checkbox"
-                checked={(active.events.find((e) => e.id === openEvent.id) || openEvent).notify !== false}
+                checked={!!(active.events.find((e) => e.id === openEvent.id) || openEvent).notify}
                 onChange={() => toggleEventNotify(openEvent.id)}
               />
               알림 받기
