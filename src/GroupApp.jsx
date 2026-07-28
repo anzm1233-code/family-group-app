@@ -1922,6 +1922,7 @@ export default function GroupApp() {
               {weeks.flat().map((d, i) => {
                 if (!d) return <div key={i} style={{ height: 48 }} />;
                 const assignees = dayAssignees(d);
+                const hasBroadcast = tasksOnDay(d).some((t) => t.broadcast);
                 const isSelected = d === selectedDay;
                 return (
                   <div
@@ -1941,8 +1942,9 @@ export default function GroupApp() {
                     }}
                   >
                     <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 500 : 400 }}>{d}</div>
-                    {assignees.length > 0 && (
-                      <div style={{ display: "flex", gap: 1, marginTop: 2 }}>
+                    {(assignees.length > 0 || hasBroadcast) && (
+                      <div style={{ display: "flex", gap: 1, marginTop: 2, alignItems: "center" }}>
+                        {hasBroadcast && <Megaphone size={11} color={active.accent} />}
                         {assignees.slice(0, 2).map((a, idx) => (
                           <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={13} photo={memberById[a]?.photo} />
                         ))}
