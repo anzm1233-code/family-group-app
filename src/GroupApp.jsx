@@ -234,12 +234,20 @@ function Avatar({ tier, size = 28, photo }) {
 export default function GroupApp() {
   const initialGroupId = parseGroupIdFromPath();
   const now = new Date();
+  const initialBookmarks = loadBookmarks();
 
   const [groups, setGroups] = useState([]);
-  const [bookmarks, setBookmarks] = useState(() => loadBookmarks());
+  const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [groupLoading, setGroupLoading] = useState(!!initialGroupId);
   const [groupLoadError, setGroupLoadError] = useState(null);
-  const [view, setView] = useState(initialGroupId ? "app" : "groups"); // groups | create | app
+  // A deep link always wins. Otherwise: nothing saved yet means this is very
+  // likely a first-time visitor, so skip straight to "새 그룹 만들기" instead
+  // of an empty-looking list — anyone with existing groups still lands on
+  // their list as before.
+  const [view, setView] = useState(() => {
+    if (initialGroupId) return "app";
+    return initialBookmarks.length === 0 ? "create" : "groups";
+  }); // groups | create | app
   const [, setHistoryStack] = useState([]);
   const [activeId, setActiveId] = useState(initialGroupId);
   const [tab, setTab] = useState("home");
