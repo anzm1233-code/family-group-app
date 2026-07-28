@@ -161,6 +161,27 @@ function saveBookmarks(list) {
   }
 }
 
+// No login, so "who am I" is just a per-browser, per-group choice — not real
+// identity, just enough to label actions like "OOO님이 삭제함" on this device.
+const WHOAMI_KEY = "familyGroupApp:whoAmI";
+
+function loadWhoAmIMap() {
+  try {
+    const raw = localStorage.getItem(WHOAMI_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveWhoAmIMap(map) {
+  try {
+    localStorage.setItem(WHOAMI_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
 function bookmarkFromGroup(group) {
   return {
     id: group.id,
@@ -238,6 +259,7 @@ export default function GroupApp() {
 
   const [groups, setGroups] = useState([]);
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
+  const [whoAmIMap, setWhoAmIMap] = useState(() => loadWhoAmIMap());
   const [groupLoading, setGroupLoading] = useState(!!initialGroupId);
   const [groupLoadError, setGroupLoadError] = useState(null);
   // A deep link always wins. Otherwise: nothing saved yet means this is very
@@ -319,6 +341,17 @@ export default function GroupApp() {
   const memberById = active ? Object.fromEntries(active.members.map((m) => [m.id, m])) : {};
   const selectedAssignee =
     active && active.members.some((m) => m.id === newTaskAssignee) ? newTaskAssignee : active?.members[0]?.id ?? "";
+  const myMemberId = activeId && whoAmIMap[activeId] && memberById[whoAmIMap[activeId]] ? whoAmIMap[activeId] : null;
+
+  function setWhoAmI(memberId) {
+    setWhoAmIMap((prev) => {
+      const next = { ...prev };
+      if (memberId) next[activeId] = memberId;
+      else delete next[activeId];
+      saveWhoAmIMap(next);
+      return next;
+    });
+  }
 
   const avatarFileInputRef = useRef(null);
   const [avatarUploadMemberId, setAvatarUploadMemberId] = useState(null);
@@ -835,11 +868,12 @@ export default function GroupApp() {
       setTimeout(() => setToast(null), 2500);
       return;
     }
+    const deleterName = myMemberId ? memberById[myMemberId]?.name : null;
     updateActiveGroup((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== task.id) }));
     setOpenTask(null);
     const timer = setTimeout(() => setToast(null), 4000);
     setToast({
-      message: `"${task.title}" 삭제됨`,
+      message: deleterName ? `"${task.title}" — ${deleterName}님이 삭제함` : `"${task.title}" 삭제됨`,
       undo: () => {
         clearTimeout(timer);
         updateActiveGroup((g) => ({ ...g, tasks: [...g.tasks, task].sort((a, b) => a.id - b.id) }));
@@ -1531,6 +1565,22 @@ export default function GroupApp() {
               <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "3px 0 0" }}>{m.name}</p>
             </div>
           ))}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 12, color: "var(--text-secondary)" }}>
+          <span>나:</span>
+          <select
+            value={myMemberId ?? ""}
+            onChange={(e) => setWhoAmI(e.target.value || null)}
+            style={{ fontSize: 12, padding: "2px 6px" }}
+          >
+            <option value="">선택 안 함</option>
+            {active.members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
