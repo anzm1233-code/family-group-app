@@ -17,6 +17,7 @@ import {
   Lock,
   Trash2,
   Share2,
+  Home,
 } from "lucide-react";
 import KoreanLunarCalendar from "korean-lunar-calendar";
 
@@ -422,6 +423,15 @@ export default function GroupApp() {
       if (last.view === "groups") navigateToGroupsListUrl();
       return prev.slice(0, -1);
     });
+  }
+
+  // Always jumps straight to the group list, regardless of how deep the user
+  // has navigated (or whether they arrived fresh via a shared /g/:id link).
+  // Doesn't touch `groups`/`activeId` — the current group's data is untouched.
+  function goToGroupsList() {
+    setHistoryStack([]);
+    setView("groups");
+    navigateToGroupsListUrl();
   }
 
   function goToTab(nextTab) {
@@ -1267,9 +1277,17 @@ export default function GroupApp() {
 
   return (
     <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <ChevronLeft size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goBack} />
-        <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{tab === "calendar" ? "홈" : "내 그룹"}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ChevronLeft size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goBack} />
+          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{tab === "calendar" ? "홈" : "내 그룹"}</span>
+        </div>
+        <span
+          onClick={goToGroupsList}
+          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}
+        >
+          <Home size={13} /> 내 그룹으로
+        </span>
       </div>
 
       <div
