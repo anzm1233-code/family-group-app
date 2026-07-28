@@ -651,7 +651,7 @@ export default function GroupApp() {
             "접기"
           ) : (
             <>
-              <Plus size={15} /> 추가하기
+              <Plus size={15} /> 일정추가
             </>
           )}
         </button>
