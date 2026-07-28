@@ -214,6 +214,7 @@ export default function GroupApp() {
   const [newName, setNewName] = useState("");
 
   const [showAddTaskForm, setShowAddTaskForm] = useState(false);
+  const [showCalendarAddTaskForm, setShowCalendarAddTaskForm] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskBroadcast, setNewTaskBroadcast] = useState(false);
@@ -323,6 +324,8 @@ export default function GroupApp() {
     if (tab === nextTab) return;
     pushHistory();
     setTab(nextTab);
+    setShowAddTaskForm(false);
+    setShowCalendarAddTaskForm(false);
   }
 
   function openGroup(id) {
@@ -331,6 +334,7 @@ export default function GroupApp() {
     setTab("home");
     setView("app");
     setShowAddTaskForm(false);
+    setShowCalendarAddTaskForm(false);
   }
 
   function startCreate() {
@@ -534,6 +538,23 @@ export default function GroupApp() {
     });
   }
 
+  function goToPrevDay() {
+    let prevDay = today - 1;
+    let prevMonth = todayMonth;
+    let prevYear = todayYear;
+    if (prevDay < 1) {
+      prevMonth = todayMonth - 1;
+      if (prevMonth < 1) {
+        prevMonth = 12;
+        prevYear = todayYear - 1;
+      }
+      prevDay = new Date(prevYear, prevMonth, 0).getDate();
+    }
+    setToday(prevDay);
+    setTodayMonth(prevMonth);
+    setTodayYear(prevYear);
+  }
+
   function carryOverToNextDay() {
     const gid = activeId;
     const daysInTodayMonth = new Date(todayYear, todayMonth, 0).getDate();
@@ -568,7 +589,7 @@ export default function GroupApp() {
     setCarryOverIncluded(new Set());
   }
 
-  function addTask() {
+  function addTask(dueMonth = todayMonth, dueDay = today) {
     if (!newTaskTitle.trim()) return false;
     setGroups((prev) =>
       prev.map((g) =>
@@ -582,7 +603,7 @@ export default function GroupApp() {
                   id: Date.now(),
                   title: newTaskTitle,
                   assignee: newTaskBroadcast ? null : selectedAssignee || null,
-                  due: newTaskTime ? `${todayMonth}/${today} ${newTaskTime}` : `${todayMonth}/${today}`,
+                  due: newTaskTime ? `${dueMonth}/${dueDay} ${newTaskTime}` : `${dueMonth}/${dueDay}`,
                   done: false,
                   location:
                     newTaskLocationName.trim() || newTaskLocationAddress.trim()
@@ -608,6 +629,181 @@ export default function GroupApp() {
     setNewTaskLocationName("");
     setNewTaskLocationAddress("");
     return true;
+  }
+
+  // Shared collapsible add-task/notice form — used on the home tab (defaults to
+  // "today") and on the calendar tab (targets whichever day is selected there).
+  function renderAddTaskForm(open, onToggle, onClose, dueMonth, dueDay) {
+    return (
+      <>
+        <button
+          onClick={onToggle}
+          style={{
+            width: "100%",
+            marginBottom: open ? 10 : 18,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          {open ? (
+            "접기"
+          ) : (
+            <>
+              <Plus size={15} /> 추가하기
+            </>
+          )}
+        </button>
+
+        {open && (
+          <>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <input
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                placeholder="할일 또는 공지 내용"
+                style={{ flex: 1 }}
+              />
+              <div
+                onClick={openTimePicker}
+                style={{
+                  minWidth: 130,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "0.5px solid var(--border)",
+                  background: "var(--surface-2)",
+                  color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {newTaskTime ? formatDisplayTime(newTaskTime) : "시간 선택"}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <select
+                value={selectedAssignee}
+                onChange={(e) => setNewTaskAssignee(e.target.value)}
+                disabled={newTaskBroadcast}
+                style={{ flex: 1 }}
+              >
+                {active.members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+              {newTaskPhotos.map((src, idx) => (
+                <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
+                  <img
+                    src={src}
+                    alt=""
+                    style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)" }}
+                  />
+                  <div
+                    onClick={() => setNewTaskPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                    style={{
+                      position: "absolute",
+                      top: -5,
+                      right: -5,
+                      width: 15,
+                      height: 15,
+                      borderRadius: "50%",
+                      background: "var(--text-primary)",
+                      color: "var(--surface-2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <X size={9} />
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => newTaskPhotoInputRef.current?.click()}
+                style={{
+                  fontSize: 12,
+                  padding: "6px 10px",
+                  background: "transparent",
+                  border: "0.5px dashed var(--border-strong)",
+                  color: "var(--text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Plus size={13} /> 사진 추가
+              </button>
+              <button
+                onClick={() => setShowNewTaskLocation(true)}
+                style={{
+                  fontSize: 12,
+                  padding: "6px 10px",
+                  background: "transparent",
+                  border: "0.5px dashed var(--border-strong)",
+                  color: "var(--text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  maxWidth: "100%",
+                }}
+              >
+                {newTaskLocationName || newTaskLocationAddress ? (
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    📍 {newTaskLocationName || newTaskLocationAddress}
+                  </span>
+                ) : (
+                  <>
+                    <MapPin size={13} /> 주소 추가
+                  </>
+                )}
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 16, marginBottom: 10, marginTop: -2 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={newTaskBroadcast}
+                  onChange={(e) => {
+                    setNewTaskBroadcast(e.target.checked);
+                    if (e.target.checked) setNewTaskPrivate(false);
+                  }}
+                />
+                전체에게 공지로 보내기
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={newTaskPrivate}
+                  onChange={(e) => {
+                    setNewTaskPrivate(e.target.checked);
+                    if (e.target.checked) setNewTaskBroadcast(false);
+                  }}
+                />
+                나만 보기
+              </label>
+            </div>
+            <button
+              onClick={() => {
+                if (addTask(dueMonth, dueDay)) onClose();
+              }}
+              style={{ width: "100%", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            >
+              <Plus size={15} /> 추가
+            </button>
+          </>
+        )}
+      </>
+    );
   }
 
   const newTaskPhotoInputRef = useRef(null);
@@ -986,12 +1182,20 @@ export default function GroupApp() {
               <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
                 <Check size={14} /> {todayMonth}월 {today}일 할일 / 공지
               </p>
-              <button
-                onClick={carryOverToNextDay}
-                style={{ fontSize: 11, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
-              >
-                다음 날로 넘기기 →
-              </button>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={goToPrevDay}
+                  style={{ fontSize: 11, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
+                >
+                  ← 전날로
+                </button>
+                <button
+                  onClick={carryOverToNextDay}
+                  style={{ fontSize: 11, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
+                >
+                  다음 날로 넘기기 →
+                </button>
+              </div>
             </div>
             <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "4px 0 8px" }}>
               완료 안 된 할일은 다음 날로 넘기면 자동 이월돼요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
@@ -1084,171 +1288,12 @@ export default function GroupApp() {
               </div>
             )}
 
-            <button
-              onClick={() => setShowAddTaskForm((prev) => !prev)}
-              style={{
-                width: "100%",
-                marginBottom: showAddTaskForm ? 10 : 18,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-              }}
-            >
-              {showAddTaskForm ? (
-                "접기"
-              ) : (
-                <>
-                  <Plus size={15} /> 추가하기
-                </>
-              )}
-            </button>
-
-            {showAddTaskForm && (
-              <>
-                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                  <input
-                    value={newTaskTitle}
-                    onChange={(e) => setNewTaskTitle(e.target.value)}
-                    placeholder="할일 또는 공지 내용"
-                    style={{ flex: 1 }}
-                  />
-                  <div
-                    onClick={openTimePicker}
-                    style={{
-                      minWidth: 130,
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      border: "0.5px solid var(--border)",
-                      background: "var(--surface-2)",
-                      color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
-                      fontSize: 14,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {newTaskTime ? formatDisplayTime(newTaskTime) : "시간 선택"}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                  <select
-                    value={selectedAssignee}
-                    onChange={(e) => setNewTaskAssignee(e.target.value)}
-                    disabled={newTaskBroadcast}
-                    style={{ flex: 1 }}
-                  >
-                    {active.members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-                  {newTaskPhotos.map((src, idx) => (
-                    <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
-                      <img
-                        src={src}
-                        alt=""
-                        style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)" }}
-                      />
-                      <div
-                        onClick={() => setNewTaskPhotos((prev) => prev.filter((_, i) => i !== idx))}
-                        style={{
-                          position: "absolute",
-                          top: -5,
-                          right: -5,
-                          width: 15,
-                          height: 15,
-                          borderRadius: "50%",
-                          background: "var(--text-primary)",
-                          color: "var(--surface-2)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <X size={9} />
-                      </div>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => newTaskPhotoInputRef.current?.click()}
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 10px",
-                      background: "transparent",
-                      border: "0.5px dashed var(--border-strong)",
-                      color: "var(--text-secondary)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    <Plus size={13} /> 사진 추가
-                  </button>
-                  <button
-                    onClick={() => setShowNewTaskLocation(true)}
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 10px",
-                      background: "transparent",
-                      border: "0.5px dashed var(--border-strong)",
-                      color: "var(--text-secondary)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      maxWidth: "100%",
-                    }}
-                  >
-                    {newTaskLocationName || newTaskLocationAddress ? (
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        📍 {newTaskLocationName || newTaskLocationAddress}
-                      </span>
-                    ) : (
-                      <>
-                        <MapPin size={13} /> 주소 추가
-                      </>
-                    )}
-                  </button>
-                </div>
-                <div style={{ display: "flex", gap: 16, marginBottom: 10, marginTop: -2 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                    <input
-                      type="checkbox"
-                      checked={newTaskBroadcast}
-                      onChange={(e) => {
-                        setNewTaskBroadcast(e.target.checked);
-                        if (e.target.checked) setNewTaskPrivate(false);
-                      }}
-                    />
-                    전체에게 공지로 보내기
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                    <input
-                      type="checkbox"
-                      checked={newTaskPrivate}
-                      onChange={(e) => {
-                        setNewTaskPrivate(e.target.checked);
-                        if (e.target.checked) setNewTaskBroadcast(false);
-                      }}
-                    />
-                    나만 보기
-                  </label>
-                </div>
-                <button
-                  onClick={() => {
-                    if (addTask()) setShowAddTaskForm(false);
-                  }}
-                  style={{ width: "100%", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                >
-                  <Plus size={15} /> 추가
-                </button>
-              </>
+            {renderAddTaskForm(
+              showAddTaskForm,
+              () => setShowAddTaskForm((prev) => !prev),
+              () => setShowAddTaskForm(false),
+              todayMonth,
+              today
             )}
 
             <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
@@ -1320,7 +1365,10 @@ export default function GroupApp() {
                 return (
                   <div
                     key={i}
-                    onClick={() => setSelectedDay(d)}
+                    onClick={() => {
+                      setSelectedDay(d);
+                      setShowCalendarAddTaskForm(false);
+                    }}
                     style={{
                       height: 48,
                       border: isSelected ? `1px solid ${active.accent}` : "0.5px solid var(--border)",
@@ -1396,6 +1444,15 @@ export default function GroupApp() {
                   {t.due.includes(" ") && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
                 </div>
               ))}
+              <div style={{ marginTop: 10 }}>
+                {renderAddTaskForm(
+                  showCalendarAddTaskForm,
+                  () => setShowCalendarAddTaskForm((prev) => !prev),
+                  () => setShowCalendarAddTaskForm(false),
+                  viewMonth,
+                  selectedDay
+                )}
+              </div>
             </div>
           </>
         )}
