@@ -297,6 +297,17 @@ export default function GroupApp() {
   const [draftMembers, setDraftMembers] = useState([]);
   const [draftGroupName, setDraftGroupName] = useState("");
 
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [feedbackError, setFeedbackError] = useState(null);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
   const [today, setToday] = useState(() => now.getDate());
   const [todayMonth, setTodayMonth] = useState(() => now.getMonth() + 1);
   const [todayYear, setTodayYear] = useState(() => now.getFullYear());
@@ -545,6 +556,9 @@ export default function GroupApp() {
     setDraftGroupName(active.name);
     setShowAddMember(false);
     setNewMemberName("");
+    setDeleteConfirmOpen(false);
+    setDeleteConfirmText("");
+    setDeleteError(null);
     setGroupSettingsOpen(true);
   }
 
@@ -552,6 +566,142 @@ export default function GroupApp() {
     setGroupSettingsOpen(false);
     setShowAddMember(false);
     setNewMemberName("");
+    setDeleteConfirmOpen(false);
+    setDeleteConfirmText("");
+    setDeleteError(null);
+  }
+
+  // Anyone with the group's link already has full read/write access (same
+  // trust model as every other edit in this app) — deletion follows suit and
+  // isn't restricted to whoever created it. The only safeguard is requiring
+  // the exact group name to be retyped, to prevent an accidental click.
+  async function confirmDeleteGroup() {
+    if (deleteConfirmText.trim() !== active.name) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/groups/${activeId}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 404) throw new Error("delete_failed");
+      const deletedId = activeId;
+      setGroups((prev) => prev.filter((g) => g.id !== deletedId));
+      setBookmarks((prev) => {
+        const next = prev.filter((b) => b.id !== deletedId);
+        saveBookmarks(next);
+        return next;
+      });
+      closeGroupSettings();
+      setActiveId(null);
+      setHistoryStack([]);
+      setView("groups");
+      navigateToGroupsListUrl();
+      setToast({ message: "그룹이 삭제됐어요", undo: null });
+      setTimeout(() => setToast(null), 2500);
+    } catch {
+      setDeleteError("삭제하지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  function openFeedback() {
+    setFeedbackOpen(true);
+    setFeedbackText("");
+    setFeedbackError(null);
+    setFeedbackSubmitted(false);
+  }
+
+  function closeFeedback() {
+    setFeedbackOpen(false);
+  }
+
+  async function submitFeedback() {
+    const message = feedbackText.trim();
+    if (!message) return;
+    setFeedbackBusy(true);
+    setFeedbackError(null);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, groupId: activeId || null }),
+      });
+      if (!res.ok) throw new Error("submit_failed");
+      setFeedbackSubmitted(true);
+      setFeedbackText("");
+    } catch {
+      setFeedbackError("전송하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setFeedbackBusy(false);
+    }
+  }
+
+  // Shared feedback modal — rendered from both the group-list screen and the
+  // group detail screen (see call sites), so it's reachable from anywhere.
+  function renderFeedbackModal() {
+    if (!feedbackOpen) return null;
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.45)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 20,
+        }}
+        onClick={closeFeedback}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: "var(--surface-2)",
+            borderRadius: 16,
+            padding: "1.25rem 1.4rem",
+            width: 340,
+            maxWidth: "90vw",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>피드백 남기기</p>
+            <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeFeedback} />
+          </div>
+          {feedbackSubmitted ? (
+            <>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 16px" }}>
+                소중한 의견 감사해요. 잘 전달됐어요!
+              </p>
+              <button onClick={closeFeedback} style={{ width: "100%" }}>
+                닫기
+              </button>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px" }}>
+                불편한 점, 버그, 건의사항을 자유롭게 남겨주세요.
+              </p>
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="여기에 입력해 주세요"
+                rows={5}
+                style={{ width: "100%", marginBottom: 8, resize: "vertical", fontFamily: "inherit" }}
+              />
+              {feedbackError && (
+                <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackError}</p>
+              )}
+              <button
+                onClick={submitFeedback}
+                disabled={feedbackBusy || !feedbackText.trim()}
+                style={{ width: "100%" }}
+              >
+                {feedbackBusy ? "보내는 중..." : "제출하기"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
   }
 
   function addDraftMember() {
@@ -1085,6 +1235,7 @@ export default function GroupApp() {
   // ---------- GROUP LIST ----------
   if (view === "groups") {
     return (
+      <>
       <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
         <div
           style={{
@@ -1141,11 +1292,28 @@ export default function GroupApp() {
               </p>
             )}
           </div>
-          <button onClick={startCreate} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <button onClick={startCreate} style={{ width: "100%", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <Plus size={15} /> 새 그룹 만들기
+          </button>
+          <button
+            onClick={openFeedback}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              background: "transparent",
+              border: "0.5px solid var(--border)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            피드백 남기기
           </button>
         </div>
       </div>
+      {renderFeedbackModal()}
+      </>
     );
   }
 
@@ -1284,6 +1452,7 @@ export default function GroupApp() {
   }
 
   return (
+    <>
     <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1932,6 +2101,18 @@ export default function GroupApp() {
             >
               <Share2 size={15} /> 그룹 초대/공유하기
             </button>
+            <button
+              onClick={openFeedback}
+              style={{
+                width: "100%",
+                marginBottom: 16,
+                background: "transparent",
+                border: "0.5px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              피드백 남기기
+            </button>
 
             <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
             <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
@@ -1987,6 +2168,61 @@ export default function GroupApp() {
             <button onClick={saveGroupSettings} style={{ width: "100%" }}>
               수정 완료
             </button>
+
+            <div style={{ borderTop: "0.5px solid var(--border)", marginTop: 16, paddingTop: 12 }}>
+              {!deleteConfirmOpen ? (
+                <button
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    background: "transparent",
+                    border: "0.5px solid var(--border)",
+                    color: "var(--text-danger)",
+                  }}
+                >
+                  <Trash2 size={14} /> 그룹 삭제
+                </button>
+              ) : (
+                <>
+                  <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>
+                    삭제하면 이 그룹의 할일·일정·멤버가 전부 사라지고 되돌릴 수 없어요. 계속하려면 그룹 이름 "
+                    {active.name}"을 정확히 입력하세요.
+                  </p>
+                  <input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder={active.name}
+                    style={{ width: "100%", marginBottom: 8 }}
+                  />
+                  {deleteError && (
+                    <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{deleteError}</p>
+                  )}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      onClick={() => {
+                        setDeleteConfirmOpen(false);
+                        setDeleteConfirmText("");
+                        setDeleteError(null);
+                      }}
+                      style={{ flex: 1, background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={confirmDeleteGroup}
+                      disabled={deleteConfirmText.trim() !== active.name || deleteBusy}
+                      style={{ flex: 1, background: "var(--text-danger)", color: "#fff", border: "none" }}
+                    >
+                      {deleteBusy ? "삭제 중..." : "삭제"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -2258,5 +2494,7 @@ export default function GroupApp() {
         </div>
       )}
     </div>
+    {renderFeedbackModal()}
+    </>
   );
 }

@@ -97,6 +97,11 @@ async function listGroupSummaries(pool, ids) {
   }));
 }
 
+async function deleteGroup(pool, id) {
+  const { rowCount } = await pool.query("DELETE FROM groups WHERE id = $1", [id]);
+  return rowCount > 0;
+}
+
 async function updateGroup(pool, id, body) {
   const existing = await getGroup(pool, id);
   if (!existing) return null;
@@ -153,6 +158,12 @@ export default async (req) => {
       const group = await updateGroup(pool, id, body);
       if (!group) return json({ error: "not_found" }, 404);
       return json(group);
+    }
+
+    if (req.method === "DELETE" && id) {
+      const deleted = await deleteGroup(pool, id);
+      if (!deleted) return json({ error: "not_found" }, 404);
+      return json({ ok: true });
     }
 
     return json({ error: "not_found" }, 404);
