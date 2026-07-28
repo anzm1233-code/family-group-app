@@ -1922,7 +1922,7 @@ export default function GroupApp() {
               {weeks.flat().map((d, i) => {
                 if (!d) return <div key={i} style={{ height: 48 }} />;
                 const assignees = dayAssignees(d);
-                const hasBroadcast = tasksOnDay(d).some((t) => t.broadcast);
+                const broadcastCount = tasksOnDay(d).filter((t) => t.broadcast).length;
                 const isSelected = d === selectedDay;
                 return (
                   <div
@@ -1942,9 +1942,14 @@ export default function GroupApp() {
                     }}
                   >
                     <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 500 : 400 }}>{d}</div>
-                    {(assignees.length > 0 || hasBroadcast) && (
+                    {(assignees.length > 0 || broadcastCount > 0) && (
                       <div style={{ display: "flex", gap: 1, marginTop: 2, alignItems: "center" }}>
-                        {hasBroadcast && <Megaphone size={11} color={active.accent} />}
+                        {broadcastCount > 0 && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 1, color: active.accent }}>
+                            <Megaphone size={11} />
+                            {broadcastCount > 1 && <span style={{ fontSize: 9 }}>{broadcastCount}</span>}
+                          </span>
+                        )}
                         {assignees.slice(0, 2).map((a, idx) => (
                           <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={13} photo={memberById[a]?.photo} />
                         ))}
@@ -1980,16 +1985,13 @@ export default function GroupApp() {
                   onClick={() => openTaskDetail(t)}
                   style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4, cursor: "pointer" }}
                 >
-                  {t.broadcast ? (
-                    <Megaphone size={14} color={active.accent} />
-                  ) : (
-                    <input
-                      type="checkbox"
-                      checked={t.done}
-                      onClick={(ev) => ev.stopPropagation()}
-                      onChange={() => toggleTask(t.id)}
-                    />
-                  )}
+                  <input
+                    type="checkbox"
+                    checked={t.done}
+                    onClick={(ev) => ev.stopPropagation()}
+                    onChange={() => toggleTask(t.id)}
+                  />
+                  {t.broadcast && <Megaphone size={14} color={active.accent} />}
                   <span
                     style={{
                       flex: 1,
