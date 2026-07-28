@@ -31,6 +31,25 @@ function generateLocalId() {
   return lastGeneratedId;
 }
 
+function addDaysToYMD(day, month, year, daysToAdd) {
+  let d = day;
+  let m = month;
+  let y = year;
+  for (let i = 0; i < daysToAdd; i++) {
+    const daysInMonth = new Date(y, m, 0).getDate();
+    d += 1;
+    if (d > daysInMonth) {
+      d = 1;
+      m += 1;
+      if (m > 12) {
+        m = 1;
+        y += 1;
+      }
+    }
+  }
+  return { day: d, month: m, year: y };
+}
+
 function getLunarLabel(year, month, day) {
   const cal = new KoreanLunarCalendar();
   if (!cal.setSolarDate(year, month, day)) return null;
@@ -342,6 +361,21 @@ export default function GroupApp() {
   const selectedAssignee =
     active && active.members.some((m) => m.id === newTaskAssignee) ? newTaskAssignee : active?.members[0]?.id ?? "";
   const myMemberId = activeId && whoAmIMap[activeId] && memberById[whoAmIMap[activeId]] ? whoAmIMap[activeId] : null;
+
+  // "다가오는 일정" preview: non-broadcast tasks and events landing in the next
+  // two days only (broadcasts already always show in 오늘 할일 regardless of
+  // date). Anything further out is only in the full calendar.
+  const upcomingWindow = [1, 2].map((n) => addDaysToYMD(today, todayMonth, todayYear, n));
+  const upcomingItems = active
+    ? [
+        ...active.tasks
+          .filter((t) => !t.broadcast && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
+          .map((t) => ({ kind: "task", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
+        ...active.events
+          .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
+          .map((e) => ({ kind: "event", id: e.id, month: todayMonth, day: e.date, data: e })),
+      ].sort((a, b) => a.month - b.month || a.day - b.day)
+    : [];
 
   function setWhoAmI(memberId) {
     setWhoAmIMap((prev) => {
@@ -1667,6 +1701,29 @@ export default function GroupApp() {
           </button>
         </div>
 
+        {toast && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "var(--text-primary)",
+              color: "var(--surface-2)",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 12,
+              marginBottom: 12,
+            }}
+          >
+            <span>{toast.message}</span>
+            {toast.undo && (
+              <span style={{ cursor: "pointer", fontWeight: 500, textDecoration: "underline" }} onClick={toast.undo}>
+                되돌리기
+              </span>
+            )}
+          </div>
+        )}
+
         {tab === "home" && (
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -1756,29 +1813,6 @@ export default function GroupApp() {
               )}
             </div>
 
-            {toast && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  background: "var(--text-primary)",
-                  color: "var(--surface-2)",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  fontSize: 12,
-                  marginBottom: 12,
-                }}
-              >
-                <span>{toast.message}</span>
-                {toast.undo && (
-                  <span style={{ cursor: "pointer", fontWeight: 500, textDecoration: "underline" }} onClick={toast.undo}>
-                    되돌리기
-                  </span>
-                )}
-              </div>
-            )}
-
             {renderAddTaskForm(
               showAddTaskForm,
               () => setShowAddTaskForm((prev) => !prev),
@@ -1791,31 +1825,52 @@ export default function GroupApp() {
               <CalendarIcon size={14} /> 다가오는 일정
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              {active.events.map((e) => (
-                <div
-                  key={e.id}
-                  onClick={() => {
-                    setViewYear(todayYear);
-                    setViewMonth(todayMonth);
-                    setSelectedDay(e.date);
-                    goToTab("calendar");
-                  }}
-                  style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
-                >
-                  <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>{todayMonth}/{e.date}</div>
-                  <div style={{ flex: 1 }}>{e.title}</div>
-                  <Bell
-                    size={13}
-                    color={e.notify ? active.accent : "var(--border-strong)"}
-                    fill={e.notify ? active.accent : "none"}
-                    style={{ cursor: "pointer", opacity: e.notify ? 1 : 0.6 }}
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      toggleEventNotify(e.id);
+              {upcomingItems.length === 0 && (
+                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>다가오는 일정이 없어요.</p>
+              )}
+              {upcomingItems.map((item) =>
+                item.kind === "task" ? (
+                  <div
+                    key={`task-${item.id}`}
+                    onClick={() => openTaskDetail(item.data)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
+                  >
+                    <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>
+                      {item.month}/{item.day}
+                    </div>
+                    <div style={{ flex: 1 }}>{item.data.title}</div>
+                    {!item.data.private && item.data.assignee && (
+                      <Avatar tier={memberById[item.data.assignee]?.tier ?? 0} size={14} photo={memberById[item.data.assignee]?.photo} />
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    key={`event-${item.id}`}
+                    onClick={() => {
+                      setViewYear(todayYear);
+                      setViewMonth(todayMonth);
+                      setSelectedDay(item.data.date);
+                      goToTab("calendar");
                     }}
-                  />
-                </div>
-              ))}
+                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
+                  >
+                    <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>
+                      {item.month}/{item.day}
+                    </div>
+                    <div style={{ flex: 1 }}>{item.data.title}</div>
+                    <Bell
+                      size={13}
+                      color={item.data.notify ? active.accent : "var(--border-strong)"}
+                      fill={item.data.notify ? active.accent : "none"}
+                      style={{ cursor: "pointer", opacity: item.data.notify ? 1 : 0.6 }}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        toggleEventNotify(item.data.id);
+                      }}
+                    />
+                  </div>
+                )
+              )}
             </div>
 
             <button onClick={() => goToTab("calendar")} style={{ width: "100%" }}>
