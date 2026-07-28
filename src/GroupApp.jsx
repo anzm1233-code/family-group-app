@@ -356,14 +356,23 @@ export default function GroupApp() {
   const avatarFileInputRef = useRef(null);
   const [avatarUploadMemberId, setAvatarUploadMemberId] = useState(null);
 
+  // Tracks in-flight saves so the polling refresh (below) never clobbers a
+  // local edit with stale data it fetched while that edit was still in transit.
+  const pendingSaveCountRef = useRef(0);
+
   // Applies a local update to the active group immediately, then saves the
-  // resulting document to the server so anyone else with the link sees it
-  // the next time they load or refresh.
+  // resulting document to the server so anyone else with the link sees it —
+  // on their next poll tick, or immediately on their next load or refresh.
   function updateActiveGroup(updater) {
     setGroups((prev) => {
       const next = prev.map((g) => (g.id !== activeId ? g : updater(g)));
       const updated = next.find((g) => g.id === activeId);
-      if (updated) persistGroup(updated);
+      if (updated) {
+        pendingSaveCountRef.current += 1;
+        persistGroup(updated).finally(() => {
+          pendingSaveCountRef.current -= 1;
+        });
+      }
       return next;
     });
   }
@@ -421,6 +430,30 @@ export default function GroupApp() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
+
+  // Poll the active group while it's open so other people's changes show up
+  // without needing a manual refresh. Skips a tick while the tab is hidden
+  // (no point spending a function call nobody will see) or while a local
+  // edit is still saving (so the poll can't overwrite it with stale data).
+  useEffect(() => {
+    if (view !== "app" || !activeId) return;
+    const groupId = activeId;
+    const POLL_INTERVAL_MS = 5000;
+    const interval = setInterval(() => {
+      if (document.hidden || pendingSaveCountRef.current > 0) return;
+      fetch(`/api/groups/${groupId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((group) => {
+          if (!group || pendingSaveCountRef.current > 0) return;
+          const withNotify = applyNotifyPrefs([group])[0];
+          setGroups((prev) => prev.map((g) => (g.id === group.id ? withNotify : g)));
+        })
+        .catch(() => {
+          // best-effort; a transient failure just waits for the next tick
+        });
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [view, activeId]);
 
   function handleAvatarClick(memberId) {
     setAvatarUploadMemberId(memberId);
