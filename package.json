@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node --env-file=.env scripts/dev-functions-server.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@netlify/database": "^1.1.0",
     "korean-lunar-calendar": "^0.4.0",
     "lucide-react": "^1.27.0",
     "react": "^19.2.7",

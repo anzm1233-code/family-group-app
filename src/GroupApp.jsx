@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   User,
   MapPin,
@@ -106,61 +106,81 @@ const QUICK_START = {
   },
 };
 
-const INITIAL_GROUPS = [
-  {
-    id: "g1",
-    kind: "family",
-    name: "우리 가족",
-    accent: "#0F6E56",
-    accentBg: "#E1F5EE",
-    members: QUICK_START.family.members,
-    tasks: [
-      { id: 1, title: "분리수거 내놓기", assignee: "dad", due: "7/28", done: true, location: null, broadcast: false },
-      { id: 2, title: "저녁 설거지", assignee: "mom", due: "7/28", done: false, location: null, broadcast: false },
-      {
-        id: 3,
-        title: "지호 소아과 예약",
-        assignee: "mom",
-        due: "7/28 15:00",
-        done: false,
-        location: { name: "튼튼소아청소년과의원", address: "울산 남구 삼산로 123" },
-        broadcast: false,
-        locked: true,
-      },
-      { id: 4, title: "이번 주말 외갓집 방문", assignee: null, due: "7/30", done: false, location: null, broadcast: true, private: false },
-      { id: 5, title: "병원 검진 예약 (개인)", assignee: "mom", due: "7/29", done: false, location: null, broadcast: false, private: true },
-    ],
-    events: [
-      { id: 1, date: 28, title: "지호 학부모 상담", time: "15:00", assignees: ["kid"] },
-      { id: 2, date: 30, title: "엄마 생신", time: "종일", assignees: ["mom"] },
-    ],
-  },
-  {
-    id: "g2",
-    kind: "company",
-    name: "기획 1팀",
-    accent: "#854F0B",
-    accentBg: "#FAEEDA",
-    members: QUICK_START.company.members,
-    tasks: [
-      { id: 1, title: "주간 보고서 작성", assignee: "mgr", due: "7/28", done: false, location: null, broadcast: false },
-      {
-        id: 2,
-        title: "거래처 미팅",
-        assignee: "dir",
-        due: "7/28 14:00",
-        done: false,
-        location: { name: "테크노밸리 3층 회의실", address: "울산 남구 테크노산업로 55" },
-        broadcast: false,
-      },
-      { id: 3, title: "다음 주 금요일 조기 퇴근 안내", assignee: null, due: "8/1", done: false, location: null, broadcast: true },
-    ],
-    events: [
-      { id: 1, date: 28, title: "임원 보고", time: "10:00", assignees: ["ceo"] },
-      { id: 2, date: 28, title: "기획안 마감", time: "18:00", assignees: ["mgr"] },
-    ],
-  },
-];
+// No login: a group's data lives in Postgres keyed by its id, and that id is
+// the only thing that gates access — anyone with the /g/:id link reads and
+// writes the same shared group.
+function parseGroupIdFromPath() {
+  const match = window.location.pathname.match(/^\/g\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function navigateToGroupUrl(id) {
+  const path = `/g/${id}`;
+  if (window.location.pathname !== path) {
+    window.history.pushState({ groupId: id }, "", path);
+  }
+}
+
+function navigateToGroupsListUrl() {
+  if (window.location.pathname !== "/") {
+    window.history.pushState({}, "", "/");
+  }
+}
+
+// Purely a personal shortcut list (per browser, not authoritative) so "내 그룹"
+// has something to show without any login — the real data always comes from
+// the server by id.
+const BOOKMARKS_KEY = "familyGroupApp:myGroups";
+
+function loadBookmarks() {
+  try {
+    const raw = localStorage.getItem(BOOKMARKS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveBookmarks(list) {
+  try {
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(list));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
+function bookmarkFromGroup(group) {
+  return {
+    id: group.id,
+    kind: group.kind,
+    name: group.name,
+    accent: group.accent,
+    accentBg: group.accentBg,
+    memberCount: Array.isArray(group.members) ? group.members.length : (group.memberCount ?? 0),
+  };
+}
+
+// Sends the current group document to the server. `notify` is a per-browser
+// overlay (see applyNotifyPrefs) and must never be written back as shared data.
+async function persistGroup(group) {
+  try {
+    await fetch(`/api/groups/${group.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: group.name,
+        accent: group.accent,
+        accentBg: group.accentBg,
+        members: group.members,
+        tasks: group.tasks,
+        events: group.events.map(({ notify: _notify, ...rest }) => rest),
+      }),
+    });
+  } catch {
+    // Best-effort: local state is already updated optimistically. If this
+    // fails, a later successful save (or a refresh) reconciles with the server.
+  }
+}
 
 function Avatar({ tier, size = 28, photo }) {
   const border = tier === 0 ? 0.5 : tier === 1 ? 1.5 : tier === 2 ? 2 : 2.5;
@@ -200,18 +220,26 @@ function Avatar({ tier, size = 28, photo }) {
 }
 
 export default function GroupApp() {
-  const [groups, setGroups] = useState(() => applyNotifyPrefs(INITIAL_GROUPS));
-  const [view, setView] = useState("groups"); // groups | create | app
+  const initialGroupId = parseGroupIdFromPath();
+  const now = new Date();
+
+  const [groups, setGroups] = useState([]);
+  const [bookmarks, setBookmarks] = useState(() => loadBookmarks());
+  const [groupLoading, setGroupLoading] = useState(!!initialGroupId);
+  const [groupLoadError, setGroupLoadError] = useState(null);
+  const [view, setView] = useState(initialGroupId ? "app" : "groups"); // groups | create | app
   const [, setHistoryStack] = useState([]);
-  const [activeId, setActiveId] = useState(null);
+  const [activeId, setActiveId] = useState(initialGroupId);
   const [tab, setTab] = useState("home");
-  const [selectedDay, setSelectedDay] = useState(28);
+  const [selectedDay, setSelectedDay] = useState(() => now.getDate());
   const [openTask, setOpenTask] = useState(null);
   const [openEvent, setOpenEvent] = useState(null);
 
   const [createChoice, setCreateChoice] = useState(null);
   const [createStep, setCreateStep] = useState("choose");
   const [newName, setNewName] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState(null);
 
   const [showAddTaskForm, setShowAddTaskForm] = useState(false);
   const [showCalendarAddTaskForm, setShowCalendarAddTaskForm] = useState(false);
@@ -248,9 +276,9 @@ export default function GroupApp() {
   const [draftMembers, setDraftMembers] = useState([]);
   const [draftGroupName, setDraftGroupName] = useState("");
 
-  const [today, setToday] = useState(28);
-  const [todayMonth, setTodayMonth] = useState(7);
-  const [todayYear, setTodayYear] = useState(2026);
+  const [today, setToday] = useState(() => now.getDate());
+  const [todayMonth, setTodayMonth] = useState(() => now.getMonth() + 1);
+  const [todayYear, setTodayYear] = useState(() => now.getFullYear());
   const [toast, setToast] = useState(null); // { message, undo }
   // ids the user has explicitly opted in to carry over — defaults to none selected
   const [carryOverIncluded, setCarryOverIncluded] = useState(() => new Set());
@@ -262,6 +290,72 @@ export default function GroupApp() {
 
   const avatarFileInputRef = useRef(null);
   const [avatarUploadMemberId, setAvatarUploadMemberId] = useState(null);
+
+  // Applies a local update to the active group immediately, then saves the
+  // resulting document to the server so anyone else with the link sees it
+  // the next time they load or refresh.
+  function updateActiveGroup(updater) {
+    setGroups((prev) => {
+      const next = prev.map((g) => (g.id !== activeId ? g : updater(g)));
+      const updated = next.find((g) => g.id === activeId);
+      if (updated) persistGroup(updated);
+      return next;
+    });
+  }
+
+  async function loadGroup(id) {
+    setGroupLoading(true);
+    setGroupLoadError(null);
+    try {
+      const res = await fetch(`/api/groups/${id}`);
+      if (res.status === 404) {
+        setGroupLoadError("not_found");
+        return;
+      }
+      if (!res.ok) throw new Error("fetch_failed");
+      const group = await res.json();
+      const withNotify = applyNotifyPrefs([group])[0];
+      setGroups((prev) => (prev.some((g) => g.id === group.id) ? prev.map((g) => (g.id === group.id ? withNotify : g)) : [...prev, withNotify]));
+      setBookmarks((prev) => {
+        const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
+        saveBookmarks(next);
+        return next;
+      });
+    } catch {
+      setGroupLoadError("network");
+    } finally {
+      setGroupLoading(false);
+    }
+  }
+
+  // Deep link support: a page load on /g/:id fetches that group directly,
+  // with no login — the link itself is the access control.
+  useEffect(() => {
+    if (initialGroupId) loadGroup(initialGroupId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the "내 그룹" bookmark list's names/member counts fresh whenever it's shown.
+  useEffect(() => {
+    if (view !== "groups" || bookmarks.length === 0) return;
+    let cancelled = false;
+    fetch(`/api/groups?ids=${bookmarks.map((b) => b.id).join(",")}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const byId = Object.fromEntries(data.groups.map((g) => [g.id, g]));
+        setBookmarks((prev) => {
+          const next = prev.map((b) => (byId[b.id] ? { ...b, ...byId[b.id] } : b));
+          saveBookmarks(next);
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   function handleAvatarClick(memberId) {
     setAvatarUploadMemberId(memberId);
@@ -276,11 +370,7 @@ export default function GroupApp() {
     const reader = new FileReader();
     reader.onload = () => {
       const photo = reader.result;
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.id !== activeId ? g : { ...g, members: g.members.map((m) => (m.id === memberId ? { ...m, photo } : m)) }
-        )
-      );
+      updateActiveGroup((g) => ({ ...g, members: g.members.map((m) => (m.id === memberId ? { ...m, photo } : m)) }));
     };
     reader.readAsDataURL(file);
   }
@@ -310,12 +400,14 @@ export default function GroupApp() {
     setHistoryStack((prev) => {
       if (prev.length === 0) {
         setView("groups");
+        navigateToGroupsListUrl();
         return prev;
       }
       const last = prev[prev.length - 1];
       setView(last.view);
       setTab(last.tab);
       setCreateStep(last.createStep);
+      if (last.view === "groups") navigateToGroupsListUrl();
       return prev.slice(0, -1);
     });
   }
@@ -335,6 +427,8 @@ export default function GroupApp() {
     setView("app");
     setShowAddTaskForm(false);
     setShowCalendarAddTaskForm(false);
+    navigateToGroupUrl(id);
+    loadGroup(id);
   }
 
   function startCreate() {
@@ -342,6 +436,7 @@ export default function GroupApp() {
     setCreateChoice(null);
     setNewName("");
     setCreateStep("choose");
+    setCreateError(null);
     setView("create");
   }
 
@@ -352,26 +447,42 @@ export default function GroupApp() {
     setCreateStep("name");
   }
 
-  function confirmCreate() {
+  async function confirmCreate() {
     const q = QUICK_START[createChoice];
-    const id = "g" + (groups.length + 1) + "-" + Date.now();
-    const group = {
-      id,
-      kind: createChoice,
-      name: newName || q.defaultName || "새 그룹",
-      accent: q.accent,
-      accentBg: q.accentBg,
-      members: q.members,
-      tasks: [],
-      events: [],
-    };
-    setGroups((prev) => [...prev, group]);
-    // Skip the now-completed creation wizard steps in the back history —
-    // back from the new group should return straight to the group list.
-    setHistoryStack([{ view: "groups", tab: "home", createStep: "choose" }]);
-    setActiveId(id);
-    setTab("home");
-    setView("app");
+    setCreateBusy(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: createChoice,
+          name: newName || q.defaultName || "새 그룹",
+          accent: q.accent,
+          accentBg: q.accentBg,
+          members: q.members,
+        }),
+      });
+      if (!res.ok) throw new Error("create_failed");
+      const group = await res.json();
+      setGroups((prev) => [...prev, applyNotifyPrefs([group])[0]]);
+      setBookmarks((prev) => {
+        const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
+        saveBookmarks(next);
+        return next;
+      });
+      // Skip the now-completed creation wizard steps in the back history —
+      // back from the new group should return straight to the group list.
+      setHistoryStack([{ view: "groups", tab: "home", createStep: "choose" }]);
+      setActiveId(group.id);
+      setTab("home");
+      setView("app");
+      navigateToGroupUrl(group.id);
+    } catch {
+      setCreateError("그룹을 만들지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setCreateBusy(false);
+    }
   }
 
   function openGroupSettings() {
@@ -403,22 +514,23 @@ export default function GroupApp() {
   function saveGroupSettings() {
     const removedIds = active.members.filter((m) => !draftMembers.some((dm) => dm.id === m.id)).map((m) => m.id);
     const trimmedName = draftGroupName.trim();
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id !== activeId
-          ? g
-          : {
-              ...g,
-              name: trimmedName || g.name,
-              members: draftMembers,
-              tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
-              events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
-            }
-      )
-    );
+    updateActiveGroup((g) => ({
+      ...g,
+      name: trimmedName || g.name,
+      members: draftMembers,
+      tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
+      events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
+    }));
+    setBookmarks((prev) => {
+      const next = prev.map((b) => (b.id === activeId ? { ...b, name: trimmedName || b.name, memberCount: draftMembers.length } : b));
+      saveBookmarks(next);
+      return next;
+    });
     closeGroupSettings();
   }
 
+  // Per-browser preference layered on top of the shared event — never sent to
+  // the server (see persistGroup), so it doesn't affect what other people see.
   function toggleEventNotify(eventId) {
     const currentGroup = groups.find((g) => g.id === activeId);
     const currentEvent = currentGroup?.events.find((e) => e.id === eventId);
@@ -434,9 +546,7 @@ export default function GroupApp() {
   }
 
   function toggleTask(id) {
-    setGroups((prev) =>
-      prev.map((g) => (g.id !== activeId ? g : { ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) }))
-    );
+    updateActiveGroup((g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) }));
     setOpenTask((prev) => (prev && prev.id === id ? { ...prev, done: !prev.done } : prev));
   }
 
@@ -483,20 +593,14 @@ export default function GroupApp() {
       const datePart = openTask.due.split(" ")[0];
       newDue = `${datePart} ${draftDueTime}`;
     }
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id !== activeId
-          ? g
-          : {
-              ...g,
-              tasks: g.tasks.map((t) =>
-                t.id === taskId
-                  ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee, due: newDue }
-                  : t
-              ),
-            }
-      )
-    );
+    updateActiveGroup((g) => ({
+      ...g,
+      tasks: g.tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee, due: newDue }
+          : t
+      ),
+    }));
     closeTaskDetail();
   }
 
@@ -524,15 +628,14 @@ export default function GroupApp() {
       setTimeout(() => setToast(null), 2500);
       return;
     }
-    const gid = activeId;
-    setGroups((prev) => prev.map((g) => (g.id !== gid ? g : { ...g, tasks: g.tasks.filter((t) => t.id !== task.id) })));
+    updateActiveGroup((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== task.id) }));
     setOpenTask(null);
     const timer = setTimeout(() => setToast(null), 4000);
     setToast({
       message: `"${task.title}" 삭제됨`,
       undo: () => {
         clearTimeout(timer);
-        setGroups((prev) => prev.map((g) => (g.id !== gid ? g : { ...g, tasks: [...g.tasks, task].sort((a, b) => a.id - b.id) })));
+        updateActiveGroup((g) => ({ ...g, tasks: [...g.tasks, task].sort((a, b) => a.id - b.id) }));
         setToast(null);
       },
     });
@@ -556,7 +659,6 @@ export default function GroupApp() {
   }
 
   function carryOverToNextDay() {
-    const gid = activeId;
     const daysInTodayMonth = new Date(todayYear, todayMonth, 0).getDate();
     let nextDay = today + 1;
     let nextMonth = todayMonth;
@@ -569,20 +671,14 @@ export default function GroupApp() {
         nextYear = todayYear + 1;
       }
     }
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id !== gid
-          ? g
-          : {
-              ...g,
-              tasks: g.tasks.map((t) => {
-                if (t.broadcast || t.done || taskDay(t) !== today || !carryOverIncluded.has(t.id)) return t;
-                const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
-                return { ...t, due: `${nextMonth}/${nextDay}${timePart}` };
-              }),
-            }
-      )
-    );
+    updateActiveGroup((g) => ({
+      ...g,
+      tasks: g.tasks.map((t) => {
+        if (t.broadcast || t.done || taskDay(t) !== today || !carryOverIncluded.has(t.id)) return t;
+        const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
+        return { ...t, due: `${nextMonth}/${nextDay}${timePart}` };
+      }),
+    }));
     setToday(nextDay);
     setTodayMonth(nextMonth);
     setTodayYear(nextYear);
@@ -591,35 +687,29 @@ export default function GroupApp() {
 
   function addTask(dueMonth = todayMonth, dueDay = today) {
     if (!newTaskTitle.trim()) return false;
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id !== activeId
-          ? g
-          : {
-              ...g,
-              tasks: [
-                ...g.tasks,
-                {
-                  id: Date.now(),
-                  title: newTaskTitle,
-                  assignee: newTaskBroadcast ? null : selectedAssignee || null,
-                  due: newTaskTime ? `${dueMonth}/${dueDay} ${newTaskTime}` : `${dueMonth}/${dueDay}`,
-                  done: false,
-                  location:
-                    newTaskLocationName.trim() || newTaskLocationAddress.trim()
-                      ? {
-                          name: newTaskLocationName.trim() || newTaskLocationAddress.trim(),
-                          address: newTaskLocationAddress.trim(),
-                        }
-                      : null,
-                  broadcast: newTaskBroadcast,
-                  private: newTaskPrivate,
-                  photos: newTaskPhotos,
-                },
-              ],
-            }
-      )
-    );
+    updateActiveGroup((g) => ({
+      ...g,
+      tasks: [
+        ...g.tasks,
+        {
+          id: Date.now(),
+          title: newTaskTitle,
+          assignee: newTaskBroadcast ? null : selectedAssignee || null,
+          due: newTaskTime ? `${dueMonth}/${dueDay} ${newTaskTime}` : `${dueMonth}/${dueDay}`,
+          done: false,
+          location:
+            newTaskLocationName.trim() || newTaskLocationAddress.trim()
+              ? {
+                  name: newTaskLocationName.trim() || newTaskLocationAddress.trim(),
+                  address: newTaskLocationAddress.trim(),
+                }
+              : null,
+          broadcast: newTaskBroadcast,
+          private: newTaskPrivate,
+          photos: newTaskPhotos,
+        },
+      ],
+    }));
     setNewTaskTitle("");
     setNewTaskTime("");
     setNewTaskBroadcast(false);
@@ -922,10 +1012,9 @@ export default function GroupApp() {
   }
 
   const weeks = getWeeks(viewYear, viewMonth);
-  const isSampleMonth = viewYear === 2026 && viewMonth === 7;
-  const eventsOnDay = (d) => (active && isSampleMonth ? active.events.filter((e) => e.date === d) : []);
-  const tasksOnDay = (d) =>
-    active && viewYear === 2026 ? active.tasks.filter((t) => taskMonth(t) === viewMonth && taskDay(t) === d) : [];
+  // Events/tasks don't carry a year, so this is scoped to the viewed month only.
+  const eventsOnDay = (d) => (active ? active.events.filter((e) => e.date === d) : []);
+  const tasksOnDay = (d) => (active ? active.tasks.filter((t) => taskMonth(t) === viewMonth && taskDay(t) === d) : []);
   const dayAssignees = (d) => [
     ...eventsOnDay(d).flatMap((e) => e.assignees),
     ...tasksOnDay(d)
@@ -949,11 +1038,15 @@ export default function GroupApp() {
           }}
         >
           <p style={{ fontWeight: 500, fontSize: 16, margin: "0 0 14px" }}>내 그룹</p>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 14px" }}>
+            로그인 없이 링크만으로 함께 써요. 이 목록은 이 브라우저에서 만들었거나 열어본 그룹의 바로가기예요 — 실제 데이터는
+            서버에 저장되고, 링크를 받은 사람은 누구나 같은 그룹을 보고 수정할 수 있어요.
+          </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            {groups.map((g) => (
+            {bookmarks.map((b) => (
               <div
-                key={g.id}
-                onClick={() => openGroup(g.id)}
+                key={b.id}
+                onClick={() => openGroup(b.id)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -969,8 +1062,8 @@ export default function GroupApp() {
                     width: 36,
                     height: 36,
                     borderRadius: "50%",
-                    background: g.accentBg,
-                    color: g.accent,
+                    background: b.accentBg,
+                    color: b.accent,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -979,12 +1072,17 @@ export default function GroupApp() {
                   <Users size={17} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{g.name}</p>
-                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{g.members.length}명</p>
+                  <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{b.name}</p>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{b.memberCount}명</p>
                 </div>
                 <ChevronRight size={16} color="var(--text-muted)" />
               </div>
             ))}
+            {bookmarks.length === 0 && (
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+                아직 만든 그룹이 없어요. 새로 만들거나, 공유받은 링크로 접속해 보세요.
+              </p>
+            )}
           </div>
           <button onClick={startCreate} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <Plus size={15} /> 새 그룹 만들기
@@ -1067,10 +1165,14 @@ export default function GroupApp() {
                 style={{ width: "100%", marginBottom: 16 }}
               />
               <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>
-                만든 뒤에도 멤버 초대와 이름 변경은 언제든 가능해요.
+                만든 뒤에도 멤버 초대와 이름 변경은 언제든 가능해요. 생성되면 고유한 링크가 만들어지고, 그 링크로 들어오는
+                사람은 누구나 같은 그룹을 함께 볼 수 있어요.
               </p>
-              <button onClick={confirmCreate} style={{ width: "100%" }}>
-                그룹 만들기
+              {createError && (
+                <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 12px" }}>{createError}</p>
+              )}
+              <button onClick={confirmCreate} disabled={createBusy} style={{ width: "100%" }}>
+                {createBusy ? "만드는 중..." : "그룹 만들기"}
               </button>
             </div>
           )}
@@ -1080,7 +1182,49 @@ export default function GroupApp() {
   }
 
   // ---------- MAIN APP ----------
-  if (!active) return null;
+  if (!active) {
+    return (
+      <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
+        <div
+          style={{
+            background: "var(--surface-2)",
+            borderRadius: 16,
+            border: "0.5px solid var(--border)",
+            padding: "1.1rem 1.25rem",
+            textAlign: "center",
+          }}
+        >
+          {groupLoading && <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>불러오는 중...</p>}
+          {!groupLoading && groupLoadError === "not_found" && (
+            <>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 14px" }}>
+                존재하지 않거나 삭제된 그룹이에요.
+              </p>
+              <button
+                onClick={() => {
+                  navigateToGroupsListUrl();
+                  setView("groups");
+                }}
+                style={{ width: "100%" }}
+              >
+                내 그룹으로 돌아가기
+              </button>
+            </>
+          )}
+          {!groupLoading && groupLoadError === "network" && (
+            <>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 14px" }}>
+                그룹을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
+              </p>
+              <button onClick={() => loadGroup(activeId)} style={{ width: "100%" }}>
+                다시 시도
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
@@ -1304,14 +1448,14 @@ export default function GroupApp() {
                 <div
                   key={e.id}
                   onClick={() => {
-                    setViewYear(2026);
-                    setViewMonth(7);
+                    setViewYear(todayYear);
+                    setViewMonth(todayMonth);
                     setSelectedDay(e.date);
                     goToTab("calendar");
                   }}
                   style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
                 >
-                  <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>7/{e.date}</div>
+                  <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>{todayMonth}/{e.date}</div>
                   <div style={{ flex: 1 }}>{e.title}</div>
                   <Bell
                     size={13}
