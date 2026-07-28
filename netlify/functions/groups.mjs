@@ -102,25 +102,92 @@ async function deleteGroup(pool, id) {
   return rowCount > 0;
 }
 
-async function updateGroup(pool, id, body) {
-  const existing = await getGroup(pool, id);
-  if (!existing) return null;
+class BadOpError extends Error {}
 
-  const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : existing.name;
-  const accent = typeof body.accent === "string" ? body.accent : existing.accent;
-  const accentBg = typeof body.accentBg === "string" ? body.accentBg : existing.accentBg;
-  const members = Array.isArray(body.members) ? body.members : existing.members;
-  const tasks = Array.isArray(body.tasks) ? body.tasks : existing.tasks;
-  const events = Array.isArray(body.events) ? body.events : existing.events;
+// Applies one named, targeted operation to a group's members/tasks/events —
+// never a whole-document overwrite. The row is locked with SELECT ... FOR
+// UPDATE for the duration of the transaction, so every op sees the true
+// latest state (including anyone else's concurrent change) and can never
+// clobber it with a stale snapshot the way a "send the whole list back"
+// PUT would. This is the fix for a real data-loss bug: two people editing
+// around the same time used to have whoever saved second silently erase
+// whatever the first person had just added, because each save resent their
+// own (possibly stale) full copy of tasks/members/events.
+async function applyGroupOp(pool, id, body) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query("SELECT * FROM groups WHERE id = $1 FOR UPDATE", [id]);
+    const existing = rows[0];
+    if (!existing) {
+      await client.query("ROLLBACK");
+      return null;
+    }
 
-  const { rows } = await pool.query(
-    `UPDATE groups
-     SET name = $2, accent = $3, accent_bg = $4, members = $5::jsonb, tasks = $6::jsonb, events = $7::jsonb, updated_at = now()
-     WHERE id = $1
-     RETURNING *`,
-    [id, name, accent, accentBg, JSON.stringify(members), JSON.stringify(tasks), JSON.stringify(events)]
-  );
-  return rowToGroup(rows[0]);
+    let { name, members, tasks, events } = existing;
+
+    switch (body.op) {
+      case "addTask": {
+        if (!body.task || typeof body.task !== "object") throw new BadOpError("task required");
+        tasks = [...tasks, body.task];
+        break;
+      }
+      case "restoreTask": {
+        if (!body.task || typeof body.task !== "object") throw new BadOpError("task required");
+        tasks = [...tasks, body.task].sort((a, b) => a.id - b.id);
+        break;
+      }
+      case "deleteTask": {
+        tasks = tasks.filter((t) => t.id !== body.taskId);
+        break;
+      }
+      case "toggleTaskDone": {
+        tasks = tasks.map((t) => (t.id === body.taskId ? { ...t, done: !!body.done } : t));
+        break;
+      }
+      case "editTask": {
+        if (!body.patch || typeof body.patch !== "object") throw new BadOpError("patch required");
+        tasks = tasks.map((t) => (t.id === body.taskId ? { ...t, ...body.patch } : t));
+        break;
+      }
+      case "bulkSetTaskDue": {
+        const dueById = new Map((Array.isArray(body.updates) ? body.updates : []).map((u) => [u.taskId, u.due]));
+        tasks = tasks.map((t) => (dueById.has(t.id) ? { ...t, due: dueById.get(t.id) } : t));
+        break;
+      }
+      case "patchMember": {
+        if (!body.patch || typeof body.patch !== "object") throw new BadOpError("patch required");
+        members = members.map((m) => (m.id === body.memberId ? { ...m, ...body.patch } : m));
+        break;
+      }
+      case "updateGroupSettings": {
+        const newMembers = Array.isArray(body.members) ? body.members : members;
+        const removedIds = members.filter((m) => !newMembers.some((nm) => nm.id === m.id)).map((m) => m.id);
+        members = newMembers;
+        name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : name;
+        tasks = tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t));
+        events = events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) }));
+        break;
+      }
+      default:
+        throw new BadOpError(`unknown op: ${body.op}`);
+    }
+
+    const { rows: updatedRows } = await client.query(
+      `UPDATE groups
+       SET name = $2, members = $3::jsonb, tasks = $4::jsonb, events = $5::jsonb, updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [id, name, JSON.stringify(members), JSON.stringify(tasks), JSON.stringify(events)]
+    );
+    await client.query("COMMIT");
+    return rowToGroup(updatedRows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export default async (req) => {
@@ -155,7 +222,7 @@ export default async (req) => {
 
     if (req.method === "PUT" && id) {
       const body = await req.json().catch(() => ({}));
-      const group = await updateGroup(pool, id, body);
+      const group = await applyGroupOp(pool, id, body);
       if (!group) return json({ error: "not_found" }, 404);
       return json(group);
     }
@@ -168,6 +235,7 @@ export default async (req) => {
 
     return json({ error: "not_found" }, 404);
   } catch (err) {
+    if (err instanceof BadOpError) return json({ error: "bad_request", message: err.message }, 400);
     console.error("groups function error", err);
     return json({ error: "server_error" }, 500);
   }

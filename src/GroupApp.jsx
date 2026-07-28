@@ -193,25 +193,25 @@ function bookmarkFromGroup(group) {
   };
 }
 
-// Sends the current group document to the server. `notify` is a per-browser
-// overlay (see applyNotifyPrefs) and must never be written back as shared data.
-async function persistGroup(group) {
+// Sends one targeted operation (e.g. "add this task", "delete that task") for
+// the server to apply against its own current row — never the whole
+// members/tasks/events document. A previous version sent the client's full
+// local copy on every save, so whoever saved second (even just toggling one
+// checkbox) silently overwrote anything a concurrent editor had just added,
+// because their "current tasks" snapshot didn't include it yet. Returns the
+// server's post-op group on success (the caller reconciles local state with
+// it) or null on failure.
+async function sendGroupOp(groupId, op) {
   try {
-    await fetch(`/api/groups/${group.id}`, {
+    const res = await fetch(`/api/groups/${groupId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: group.name,
-        accent: group.accent,
-        accentBg: group.accentBg,
-        members: group.members,
-        tasks: group.tasks,
-        events: group.events.map(({ notify: _notify, ...rest }) => rest),
-      }),
+      body: JSON.stringify(op),
     });
+    if (!res.ok) return null;
+    return await res.json();
   } catch {
-    // Best-effort: local state is already updated optimistically. If this
-    // fails, a later successful save (or a refresh) reconciles with the server.
+    return null;
   }
 }
 
@@ -360,21 +360,24 @@ export default function GroupApp() {
   // local edit with stale data it fetched while that edit was still in transit.
   const pendingSaveCountRef = useRef(0);
 
-  // Applies a local update to the active group immediately, then saves the
-  // resulting document to the server so anyone else with the link sees it —
-  // on their next poll tick, or immediately on their next load or refresh.
-  function updateActiveGroup(updater) {
-    setGroups((prev) => {
-      const next = prev.map((g) => (g.id !== activeId ? g : updater(g)));
-      const updated = next.find((g) => g.id === activeId);
-      if (updated) {
-        pendingSaveCountRef.current += 1;
-        persistGroup(updated).finally(() => {
-          pendingSaveCountRef.current -= 1;
-        });
-      }
-      return next;
-    });
+  // Applies `applyLocally` for instant feedback, then sends the matching
+  // targeted `op` to the server. Once the server responds with its
+  // authoritative post-op group, local state is reconciled to exactly that —
+  // so this never overwrites a concurrent change the way resending a whole
+  // local snapshot would (see sendGroupOp).
+  function runGroupOp(op, applyLocally) {
+    const groupId = activeId;
+    setGroups((prev) => prev.map((g) => (g.id !== groupId ? g : applyLocally(g))));
+    pendingSaveCountRef.current += 1;
+    sendGroupOp(groupId, op)
+      .then((fresh) => {
+        if (!fresh) return;
+        const withNotify = applyNotifyPrefs([fresh])[0];
+        setGroups((prev) => prev.map((g) => (g.id === fresh.id ? withNotify : g)));
+      })
+      .finally(() => {
+        pendingSaveCountRef.current -= 1;
+      });
   }
 
   async function loadGroup(id) {
@@ -468,7 +471,10 @@ export default function GroupApp() {
     const reader = new FileReader();
     reader.onload = () => {
       const photo = reader.result;
-      updateActiveGroup((g) => ({ ...g, members: g.members.map((m) => (m.id === memberId ? { ...m, photo } : m)) }));
+      runGroupOp(
+        { op: "patchMember", memberId, patch: { photo } },
+        (g) => ({ ...g, members: g.members.map((m) => (m.id === memberId ? { ...m, photo } : m)) })
+      );
     };
     reader.readAsDataURL(file);
   }
@@ -785,13 +791,16 @@ export default function GroupApp() {
   function saveGroupSettings() {
     const removedIds = active.members.filter((m) => !draftMembers.some((dm) => dm.id === m.id)).map((m) => m.id);
     const trimmedName = draftGroupName.trim();
-    updateActiveGroup((g) => ({
-      ...g,
-      name: trimmedName || g.name,
-      members: draftMembers,
-      tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
-      events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
-    }));
+    runGroupOp(
+      { op: "updateGroupSettings", name: trimmedName, members: draftMembers },
+      (g) => ({
+        ...g,
+        name: trimmedName || g.name,
+        members: draftMembers,
+        tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
+        events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
+      })
+    );
     setBookmarks((prev) => {
       const next = prev.map((b) => (b.id === activeId ? { ...b, name: trimmedName || b.name, memberCount: draftMembers.length } : b));
       saveBookmarks(next);
@@ -800,8 +809,9 @@ export default function GroupApp() {
     closeGroupSettings();
   }
 
-  // Per-browser preference layered on top of the shared event — never sent to
-  // the server (see persistGroup), so it doesn't affect what other people see.
+  // Per-browser preference layered on top of the shared event — set only in
+  // local state (never sent as part of any group op), so it doesn't affect
+  // what other people see.
   function toggleEventNotify(eventId) {
     const currentGroup = groups.find((g) => g.id === activeId);
     const currentEvent = currentGroup?.events.find((e) => e.id === eventId);
@@ -817,8 +827,13 @@ export default function GroupApp() {
   }
 
   function toggleTask(id) {
-    updateActiveGroup((g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) }));
-    setOpenTask((prev) => (prev && prev.id === id ? { ...prev, done: !prev.done } : prev));
+    const current = active?.tasks.find((t) => t.id === id);
+    const nextDone = !current?.done;
+    runGroupOp(
+      { op: "toggleTaskDone", taskId: id, done: nextDone },
+      (g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === id ? { ...t, done: nextDone } : t)) })
+    );
+    setOpenTask((prev) => (prev && prev.id === id ? { ...prev, done: nextDone } : prev));
   }
 
   function toggleCarryOverSelection(id) {
@@ -866,14 +881,18 @@ export default function GroupApp() {
       newDue = `${datePart} ${draftDueTime}`;
     }
     const newTitle = draftTitle.trim() || openTask.title;
-    updateActiveGroup((g) => ({
-      ...g,
-      tasks: g.tasks.map((t) =>
-        t.id === taskId
-          ? { ...t, title: newTitle, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee, due: newDue }
-          : t
-      ),
-    }));
+    const patch = {
+      title: newTitle,
+      location: draftLocation,
+      photos: draftPhotos,
+      private: draftPrivate,
+      assignee: draftAssignee,
+      due: newDue,
+    };
+    runGroupOp(
+      { op: "editTask", taskId, patch },
+      (g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) })
+    );
     closeTaskDetail();
   }
 
@@ -902,14 +921,17 @@ export default function GroupApp() {
       return;
     }
     const deleterName = myMemberId ? memberById[myMemberId]?.name : null;
-    updateActiveGroup((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== task.id) }));
+    runGroupOp({ op: "deleteTask", taskId: task.id }, (g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== task.id) }));
     setOpenTask(null);
     const timer = setTimeout(() => setToast(null), 4000);
     setToast({
       message: deleterName ? `"${task.title}" — ${deleterName}님이 삭제함` : `"${task.title}" 삭제됨`,
       undo: () => {
         clearTimeout(timer);
-        updateActiveGroup((g) => ({ ...g, tasks: [...g.tasks, task].sort((a, b) => a.id - b.id) }));
+        runGroupOp(
+          { op: "restoreTask", task },
+          (g) => ({ ...g, tasks: [...g.tasks, task].sort((a, b) => a.id - b.id) })
+        );
         setToast(null);
       },
     });
@@ -945,14 +967,17 @@ export default function GroupApp() {
         nextYear = todayYear + 1;
       }
     }
-    updateActiveGroup((g) => ({
-      ...g,
-      tasks: g.tasks.map((t) => {
-        if (t.broadcast || t.done || taskDay(t) !== today || !carryOverIncluded.has(t.id)) return t;
-        const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
-        return { ...t, due: `${nextMonth}/${nextDay}${timePart}` };
-      }),
-    }));
+    const dueById = new Map();
+    (active?.tasks || []).forEach((t) => {
+      if (t.broadcast || t.done || taskDay(t) !== today || !carryOverIncluded.has(t.id)) return;
+      const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
+      dueById.set(t.id, `${nextMonth}/${nextDay}${timePart}`);
+    });
+    const updates = Array.from(dueById, ([taskId, due]) => ({ taskId, due }));
+    runGroupOp(
+      { op: "bulkSetTaskDue", updates },
+      (g) => ({ ...g, tasks: g.tasks.map((t) => (dueById.has(t.id) ? { ...t, due: dueById.get(t.id) } : t)) })
+    );
     setToday(nextDay);
     setTodayMonth(nextMonth);
     setTodayYear(nextYear);
@@ -961,29 +986,24 @@ export default function GroupApp() {
 
   function addTask(dueMonth = todayMonth, dueDay = today) {
     if (!newTaskTitle.trim()) return false;
-    updateActiveGroup((g) => ({
-      ...g,
-      tasks: [
-        ...g.tasks,
-        {
-          id: generateLocalId(),
-          title: newTaskTitle,
-          assignee: newTaskBroadcast ? null : selectedAssignee || null,
-          due: newTaskTime ? `${dueMonth}/${dueDay} ${newTaskTime}` : `${dueMonth}/${dueDay}`,
-          done: false,
-          location:
-            newTaskLocationName.trim() || newTaskLocationAddress.trim()
-              ? {
-                  name: newTaskLocationName.trim() || newTaskLocationAddress.trim(),
-                  address: newTaskLocationAddress.trim(),
-                }
-              : null,
-          broadcast: newTaskBroadcast,
-          private: newTaskPrivate,
-          photos: newTaskPhotos,
-        },
-      ],
-    }));
+    const task = {
+      id: generateLocalId(),
+      title: newTaskTitle,
+      assignee: newTaskBroadcast ? null : selectedAssignee || null,
+      due: newTaskTime ? `${dueMonth}/${dueDay} ${newTaskTime}` : `${dueMonth}/${dueDay}`,
+      done: false,
+      location:
+        newTaskLocationName.trim() || newTaskLocationAddress.trim()
+          ? {
+              name: newTaskLocationName.trim() || newTaskLocationAddress.trim(),
+              address: newTaskLocationAddress.trim(),
+            }
+          : null,
+      broadcast: newTaskBroadcast,
+      private: newTaskPrivate,
+      photos: newTaskPhotos,
+    };
+    runGroupOp({ op: "addTask", task }, (g) => ({ ...g, tasks: [...g.tasks, task] }));
     setNewTaskTitle("");
     setNewTaskTime("");
     setNewTaskBroadcast(false);
