@@ -274,6 +274,7 @@ export default function GroupApp() {
   const [taskLocationAddress, setTaskLocationAddress] = useState("");
 
   // draft edits for the open task detail modal — only committed to `groups` on 수정 완료
+  const [draftTitle, setDraftTitle] = useState("");
   const [draftLocation, setDraftLocation] = useState(null);
   const [draftPhotos, setDraftPhotos] = useState([]);
   const [draftPrivate, setDraftPrivate] = useState(false);
@@ -597,6 +598,7 @@ export default function GroupApp() {
 
   function openTaskDetail(t) {
     setOpenTask(t);
+    setDraftTitle(t.title);
     setDraftLocation(t.location || null);
     setDraftPhotos(t.photos || []);
     setDraftPrivate(!!t.private);
@@ -629,11 +631,12 @@ export default function GroupApp() {
       const datePart = openTask.due.split(" ")[0];
       newDue = `${datePart} ${draftDueTime}`;
     }
+    const newTitle = draftTitle.trim() || openTask.title;
     updateActiveGroup((g) => ({
       ...g,
       tasks: g.tasks.map((t) =>
         t.id === taskId
-          ? { ...t, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee, due: newDue }
+          ? { ...t, title: newTitle, location: draftLocation, photos: draftPhotos, private: draftPrivate, assignee: draftAssignee, due: newDue }
           : t
       ),
     }));
@@ -1990,7 +1993,12 @@ export default function GroupApp() {
               <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeTaskDetail} />
             </div>
 
-            <p style={{ fontSize: 17, fontWeight: 500, margin: "0 0 4px" }}>{openTask.title}</p>
+            <input
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              placeholder="할일 또는 공지 내용"
+              style={{ width: "100%", fontSize: 17, fontWeight: 500, margin: "0 0 4px", padding: "6px 8px" }}
+            />
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13, color: "var(--text-secondary)", flexWrap: "wrap" }}>
               {openTask.broadcast ? (
                 <span>그룹 전체에게 알림</span>
