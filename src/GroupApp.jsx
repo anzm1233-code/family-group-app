@@ -362,14 +362,14 @@ export default function GroupApp() {
     active && active.members.some((m) => m.id === newTaskAssignee) ? newTaskAssignee : active?.members[0]?.id ?? "";
   const myMemberId = activeId && whoAmIMap[activeId] && memberById[whoAmIMap[activeId]] ? whoAmIMap[activeId] : null;
 
-  // "다가오는 일정" preview: non-broadcast tasks and events landing in the next
-  // two days only (broadcasts already always show in 오늘 할일 regardless of
-  // date). Anything further out is only in the full calendar.
+  // "다가오는 일정" preview: tasks and events landing in the next two days only
+  // (today's and overdue items belong in 오늘 할일 instead). Anything further
+  // out is only in the full calendar.
   const upcomingWindow = [1, 2].map((n) => addDaysToYMD(today, todayMonth, todayYear, n));
   const upcomingItems = active
     ? [
         ...active.tasks
-          .filter((t) => !t.broadcast && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
+          .filter((t) => upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
           .map((t) => ({ kind: "task", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
         ...active.events
           .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
@@ -948,6 +948,20 @@ export default function GroupApp() {
     return m ? parseInt(m[1], 10) : null;
   }
 
+  // Tasks only ever store month/day (no year), so "overdue" is just an
+  // ordering within the current year — matches the rest of the date helpers
+  // in this file (e.g. addDaysToYMD, the 다가오는 일정 window).
+  function isTaskDueToday(t) {
+    return taskMonth(t) === todayMonth && taskDay(t) === today;
+  }
+
+  function isTaskOverdue(t) {
+    const m = taskMonth(t);
+    const d = taskDay(t);
+    if (m == null || d == null) return false;
+    return m * 100 + d < todayMonth * 100 + today;
+  }
+
   function deleteTask(task) {
     if (task.locked) {
       setToast({ message: "잠긴 항목은 삭제할 수 없어요", undo: null });
@@ -1003,7 +1017,7 @@ export default function GroupApp() {
     }
     const dueById = new Map();
     (active?.tasks || []).forEach((t) => {
-      if (t.broadcast || t.done || taskDay(t) !== today || !carryOverIncluded.has(t.id)) return;
+      if (t.broadcast || t.done || !isTaskDueToday(t) || !carryOverIncluded.has(t.id)) return;
       const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
       dueById.set(t.id, `${nextMonth}/${nextDay}${timePart}`);
     });
@@ -1750,7 +1764,7 @@ export default function GroupApp() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {active.tasks
-                .filter((t) => t.broadcast || taskDay(t) === today)
+                .filter((t) => isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t)))
                 .map((t) => (
                 <div
                   key={t.id}
@@ -1788,7 +1802,7 @@ export default function GroupApp() {
                   <span style={{ fontSize: 11, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
                     {t.broadcast ? "전체 공지" : t.private ? "나만 보기" : memberById[t.assignee]?.name}
                   </span>
-                  {!t.broadcast && !t.done && taskDay(t) === today && (
+                  {!t.broadcast && !t.done && isTaskDueToday(t) && (
                     <input
                       type="checkbox"
                       checked={carryOverIncluded.has(t.id)}
@@ -1808,7 +1822,7 @@ export default function GroupApp() {
                   />
                 </div>
               ))}
-              {active.tasks.filter((t) => t.broadcast || taskDay(t) === today).length === 0 && (
+              {active.tasks.filter((t) => isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))).length === 0 && (
                 <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>오늘은 남은 할일이 없어요.</p>
               )}
             </div>
@@ -1838,8 +1852,9 @@ export default function GroupApp() {
                     <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>
                       {item.month}/{item.day}
                     </div>
+                    {item.data.broadcast && <Megaphone size={14} color={active.accent} />}
                     <div style={{ flex: 1 }}>{item.data.title}</div>
-                    {!item.data.private && item.data.assignee && (
+                    {!item.data.broadcast && !item.data.private && item.data.assignee && (
                       <Avatar tier={memberById[item.data.assignee]?.tier ?? 0} size={14} photo={memberById[item.data.assignee]?.photo} />
                     )}
                   </div>
