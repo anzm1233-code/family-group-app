@@ -681,7 +681,7 @@ export default function GroupApp() {
   // isn't restricted to whoever created it. The only safeguard is requiring
   // the exact group name to be retyped, to prevent an accidental click.
   async function confirmDeleteGroup() {
-    if (deleteConfirmText.trim() !== active.name) return;
+    if (deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC")) return;
     setDeleteBusy(true);
     setDeleteError(null);
     try {
@@ -2422,8 +2422,15 @@ export default function GroupApp() {
                     </button>
                     <button
                       onClick={confirmDeleteGroup}
-                      disabled={deleteConfirmText.trim() !== active.name || deleteBusy}
-                      style={{ flex: 1, background: "var(--text-danger)", color: "#fff", border: "none" }}
+                      disabled={deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC") || deleteBusy}
+                      style={{
+                        flex: 1,
+                        background: "var(--text-danger)",
+                        color: "#fff",
+                        border: "none",
+                        opacity: deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC") ? 0.4 : 1,
+                        cursor: deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC") ? "not-allowed" : "pointer",
+                      }}
                     >
                       {deleteBusy ? "삭제 중..." : "삭제"}
                     </button>
