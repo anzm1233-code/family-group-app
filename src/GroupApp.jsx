@@ -636,7 +636,7 @@ export default function GroupApp() {
   async function copyGroupLink(url) {
     try {
       await navigator.clipboard.writeText(url);
-      setToast({ message: "링크가 복사됐어요", undo: null });
+      setToast({ message: "주소가 복사됐어요. 초대할 사람에게 보내세요", undo: null });
     } catch {
       setToast({ message: `복사에 실패했어요. 직접 복사해 주세요: ${url}`, undo: null });
     }
