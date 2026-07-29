@@ -644,17 +644,13 @@ export default function GroupApp() {
   }
 
   // Same link for every group type — anyone who opens it sees and edits the
-  // same shared data, so "초대" is just "share this URL".
+  // same shared data, so "초대" is just "share this URL". Always copies
+  // straight to the clipboard rather than opening the OS share sheet — once
+  // handed to a third-party app (KakaoTalk, etc.) that app decides whether to
+  // pre-fill anything, and that's inconsistent enough to be more confusing
+  // than a plain "링크가 복사됐어요" the user can paste anywhere themselves.
   async function shareGroupLink() {
     const url = `${window.location.origin}/g/${active.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: active.name, text: `${active.name} 그룹에 참여해 보세요`, url });
-        return;
-      } catch (err) {
-        if (err?.name === "AbortError") return; // user closed the share sheet — not an error
-      }
-    }
     copyGroupLink(url);
   }
 
