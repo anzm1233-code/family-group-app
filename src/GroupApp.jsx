@@ -825,15 +825,24 @@ export default function GroupApp() {
     setDraftMembers((prev) => prev.filter((m) => m.id !== memberId));
   }
 
+  function updateDraftMemberName(memberId, name) {
+    setDraftMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, name } : m)));
+  }
+
   function saveGroupSettings() {
     const removedIds = active.members.filter((m) => !draftMembers.some((dm) => dm.id === m.id)).map((m) => m.id);
     const trimmedName = draftGroupName.trim();
+    const trimmedMembers = draftMembers.map((m) => {
+      const original = active.members.find((am) => am.id === m.id);
+      const trimmed = m.name.trim();
+      return { ...m, name: trimmed || original?.name || m.name };
+    });
     runGroupOp(
-      { op: "updateGroupSettings", name: trimmedName, members: draftMembers },
+      { op: "updateGroupSettings", name: trimmedName, members: trimmedMembers },
       (g) => ({
         ...g,
         name: trimmedName || g.name,
-        members: draftMembers,
+        members: trimmedMembers,
         tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
         events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
       })
@@ -2309,7 +2318,18 @@ export default function GroupApp() {
                   }}
                 >
                   <Avatar tier={m.tier} photo={m.photo} size={24} />
-                  <span style={{ flex: 1, fontSize: 14 }}>{m.name}</span>
+                  <input
+                    value={m.name}
+                    onChange={(e) => updateDraftMemberName(m.id, e.target.value)}
+                    placeholder="이름"
+                    style={{
+                      flex: 1,
+                      fontSize: 14,
+                      padding: "4px 6px",
+                      border: "0.5px solid transparent",
+                      background: "transparent",
+                    }}
+                  />
                   {confirmRemoveMemberId === m.id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 12, color: "var(--text-danger)" }}>삭제할까요?</span>
@@ -2353,7 +2373,7 @@ export default function GroupApp() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") addDraftMember();
                   }}
-                  placeholder="멤버 이름"
+                  placeholder="가족 이름"
                   style={{ flex: 1 }}
                 />
                 <button onClick={addDraftMember}>추가</button>
@@ -2363,7 +2383,7 @@ export default function GroupApp() {
                 onClick={() => setShowAddMember(true)}
                 style={{ width: "100%", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
-                <Plus size={15} /> 멤버 추가
+                <Plus size={15} /> 가족 추가
               </button>
             )}
 
