@@ -825,15 +825,21 @@ export default function GroupApp() {
     setDraftMembers((prev) => prev.filter((m) => m.id !== memberId));
   }
 
+  function renameDraftMember(memberId, name) {
+    setDraftMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, name } : m)));
+  }
+
   function saveGroupSettings() {
     const removedIds = active.members.filter((m) => !draftMembers.some((dm) => dm.id === m.id)).map((m) => m.id);
     const trimmedName = draftGroupName.trim();
+    const originalById = Object.fromEntries(active.members.map((m) => [m.id, m]));
+    const trimmedMembers = draftMembers.map((m) => ({ ...m, name: m.name.trim() || originalById[m.id]?.name || m.name }));
     runGroupOp(
-      { op: "updateGroupSettings", name: trimmedName, members: draftMembers },
+      { op: "updateGroupSettings", name: trimmedName, members: trimmedMembers },
       (g) => ({
         ...g,
         name: trimmedName || g.name,
-        members: draftMembers,
+        members: trimmedMembers,
         tasks: g.tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t)),
         events: g.events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) })),
       })
@@ -2309,7 +2315,11 @@ export default function GroupApp() {
                   }}
                 >
                   <Avatar tier={m.tier} photo={m.photo} size={24} />
-                  <span style={{ flex: 1, fontSize: 14 }}>{m.name}</span>
+                  <input
+                    value={m.name}
+                    onChange={(e) => renameDraftMember(m.id, e.target.value)}
+                    style={{ flex: 1, fontSize: 14, padding: "6px 8px" }}
+                  />
                   {confirmRemoveMemberId === m.id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 12, color: "var(--text-danger)" }}>삭제할까요?</span>
