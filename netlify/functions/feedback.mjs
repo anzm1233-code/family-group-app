@@ -23,15 +23,35 @@ function json(data, status = 200) {
   });
 }
 
-// Intentionally no GET here — this is a separate table from `groups` and has
-// no read endpoint at all, since there's no login/admin auth in this app to
-// gate it with. Submissions are meant to be checked via direct DB access
-// (e.g. `netlify db` / psql), not through the deployed site.
+// GET is gated by a password checked against the FEEDBACK_ADMIN_PASSWORD
+// env var (set in the Netlify site's environment settings) — there's no
+// login/admin auth system in this app, so this is the one lightweight gate
+// standing between "/admin/feedback" and the raw submissions table. If the
+// env var isn't set, GET is refused entirely (fail closed) rather than
+// falling open to an unauthenticated read.
 export default async (req) => {
-  if (req.method !== "POST") return json({ error: "not_found" }, 404);
-
   const { pool } = getDatabase();
   await ensureSchema(pool);
+
+  if (req.method === "GET") {
+    const adminPassword = process.env.FEEDBACK_ADMIN_PASSWORD;
+    const url = new URL(req.url);
+    const supplied = url.searchParams.get("password") || "";
+    if (!adminPassword || supplied !== adminPassword) {
+      return json({ error: "unauthorized" }, 401);
+    }
+    try {
+      const { rows } = await pool.query(
+        "SELECT id, message, group_id, created_at FROM feedback ORDER BY created_at DESC"
+      );
+      return json({ feedback: rows });
+    } catch (err) {
+      console.error("feedback function error", err);
+      return json({ error: "server_error" }, 500);
+    }
+  }
+
+  if (req.method !== "POST") return json({ error: "not_found" }, 404);
 
   try {
     const body = await req.json().catch(() => ({}));
