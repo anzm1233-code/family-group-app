@@ -676,12 +676,22 @@ export default function GroupApp() {
     setDeleteError(null);
   }
 
+  // Compares the retyped name loosely enough to survive things a user can't
+  // see: NFC vs NFD Hangul encoding, and stray double/non-breaking spaces
+  // that may have snuck into the stored name (trim() only strips the ends,
+  // not repeated spaces in the middle) — otherwise an invisible mismatch
+  // leaves the button looking clickable but permanently disabled.
+  function deleteNameMatches() {
+    const normalize = (s) => s.trim().normalize("NFC").replace(/\s+/g, " ");
+    return normalize(deleteConfirmText) === normalize(active.name);
+  }
+
   // Anyone with the group's link already has full read/write access (same
   // trust model as every other edit in this app) — deletion follows suit and
   // isn't restricted to whoever created it. The only safeguard is requiring
   // the exact group name to be retyped, to prevent an accidental click.
   async function confirmDeleteGroup() {
-    if (deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC")) return;
+    if (!deleteNameMatches()) return;
     setDeleteBusy(true);
     setDeleteError(null);
     try {
@@ -2422,14 +2432,14 @@ export default function GroupApp() {
                     </button>
                     <button
                       onClick={confirmDeleteGroup}
-                      disabled={deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC") || deleteBusy}
+                      disabled={!deleteNameMatches() || deleteBusy}
                       style={{
                         flex: 1,
                         background: "var(--text-danger)",
                         color: "#fff",
                         border: "none",
-                        opacity: deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC") ? 0.4 : 1,
-                        cursor: deleteConfirmText.trim().normalize("NFC") !== active.name.normalize("NFC") ? "not-allowed" : "pointer",
+                        opacity: !deleteNameMatches() ? 0.4 : 1,
+                        cursor: !deleteNameMatches() ? "not-allowed" : "pointer",
                       }}
                     >
                       {deleteBusy ? "삭제 중..." : "삭제"}
