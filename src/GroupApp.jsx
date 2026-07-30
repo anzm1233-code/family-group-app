@@ -21,6 +21,12 @@ import {
 } from "lucide-react";
 import KoreanLunarCalendar from "korean-lunar-calendar";
 
+// Group deletion asks for this fixed phrase instead of the group's actual
+// name — comparing against a literal we control avoids invisible-character
+// mismatches (NFC/NFD Hangul encoding, stray double/non-breaking spaces)
+// that a real, possibly-legacy group name can carry without anyone noticing.
+const DELETE_CONFIRM_PHRASE = "삭제합니다";
+
 // Monotonically increasing, so ids stay unique even if two are requested in
 // the same millisecond (e.g. an eager double-click/double-tap on "추가").
 // Plain Date.now() can collide there, which produces duplicate React `key`s
@@ -676,20 +682,18 @@ export default function GroupApp() {
     setDeleteError(null);
   }
 
-  // Compares the retyped name loosely enough to survive things a user can't
+  // Loosely compares against the fixed phrase to survive things a user can't
   // see: NFC vs NFD Hangul encoding, and stray double/non-breaking spaces
-  // that may have snuck into the stored name (trim() only strips the ends,
-  // not repeated spaces in the middle) — otherwise an invisible mismatch
-  // leaves the button looking clickable but permanently disabled.
+  // from however they typed it.
   function deleteNameMatches() {
     const normalize = (s) => s.trim().normalize("NFC").replace(/\s+/g, " ");
-    return normalize(deleteConfirmText) === normalize(active.name);
+    return normalize(deleteConfirmText) === normalize(DELETE_CONFIRM_PHRASE);
   }
 
   // Anyone with the group's link already has full read/write access (same
   // trust model as every other edit in this app) — deletion follows suit and
   // isn't restricted to whoever created it. The only safeguard is requiring
-  // the exact group name to be retyped, to prevent an accidental click.
+  // a fixed confirmation phrase to be typed, to prevent an accidental click.
   async function confirmDeleteGroup() {
     if (!deleteNameMatches()) return;
     setDeleteBusy(true);
@@ -2407,13 +2411,12 @@ export default function GroupApp() {
               ) : (
                 <>
                   <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>
-                    삭제하면 이 그룹의 할일·일정·멤버가 전부 사라지고 되돌릴 수 없어요. 계속하려면 그룹 이름 "
-                    {active.name}"을 정확히 입력하세요.
+                    삭제하면 이 그룹의 할일·일정·멤버가 전부 사라지고 되돌릴 수 없어요. 계속하려면 "{DELETE_CONFIRM_PHRASE}"를 입력하세요.
                   </p>
                   <input
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder={active.name}
+                    placeholder={DELETE_CONFIRM_PHRASE}
                     style={{ width: "100%", marginBottom: 8 }}
                   />
                   {deleteError && (
