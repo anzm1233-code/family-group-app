@@ -12,7 +12,7 @@ import feedbackHandler from "../netlify/functions/feedback.mjs";
 const port = process.env.FUNCTIONS_PORT || 9000;
 
 function routeFor(pathname) {
-  if (pathname === "/api/feedback") return feedbackHandler;
+  if (pathname === "/api/feedback" || pathname.startsWith("/api/feedback/")) return feedbackHandler;
   if (pathname === "/api/groups" || pathname.startsWith("/api/groups/")) return groupsHandler;
   return null;
 }

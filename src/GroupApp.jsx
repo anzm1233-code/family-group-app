@@ -355,6 +355,13 @@ export default function GroupApp() {
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [feedbackError, setFeedbackError] = useState(null);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackList, setFeedbackList] = useState([]);
+  const [feedbackListTotal, setFeedbackListTotal] = useState(0);
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackListLoading, setFeedbackListLoading] = useState(false);
+  const [feedbackListError, setFeedbackListError] = useState(null);
+  const [commentDrafts, setCommentDrafts] = useState({});
+  const [commentBusyId, setCommentBusyId] = useState(null);
 
   const [today, setToday] = useState(() => now.getDate());
   const [todayMonth, setTodayMonth] = useState(() => now.getMonth() + 1);
@@ -722,11 +729,29 @@ export default function GroupApp() {
     }
   }
 
+  async function loadFeedbackList(page) {
+    setFeedbackListLoading(true);
+    setFeedbackListError(null);
+    try {
+      const res = await fetch(`/api/feedback?page=${page}`);
+      if (!res.ok) throw new Error("load_failed");
+      const data = await res.json();
+      setFeedbackList(data.items);
+      setFeedbackListTotal(data.total);
+      setFeedbackPage(data.page);
+    } catch {
+      setFeedbackListError("피드백을 불러오지 못했어요.");
+    } finally {
+      setFeedbackListLoading(false);
+    }
+  }
+
   function openFeedback() {
     setFeedbackOpen(true);
     setFeedbackText("");
     setFeedbackError(null);
     setFeedbackSubmitted(false);
+    loadFeedbackList(1);
   }
 
   function closeFeedback() {
@@ -747,6 +772,7 @@ export default function GroupApp() {
       if (!res.ok) throw new Error("submit_failed");
       setFeedbackSubmitted(true);
       setFeedbackText("");
+      loadFeedbackList(1);
     } catch {
       setFeedbackError("전송하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
@@ -754,10 +780,36 @@ export default function GroupApp() {
     }
   }
 
+  async function submitComment(feedbackId) {
+    const message = (commentDrafts[feedbackId] || "").trim();
+    if (!message) return;
+    setCommentBusyId(feedbackId);
+    try {
+      const res = await fetch(`/api/feedback/${feedbackId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) throw new Error("comment_failed");
+      const data = await res.json();
+      setFeedbackList((prev) =>
+        prev.map((f) => (f.id === feedbackId ? { ...f, comments: [...f.comments, data.comment] } : f))
+      );
+      setCommentDrafts((prev) => ({ ...prev, [feedbackId]: "" }));
+    } catch {
+      setFeedbackListError("댓글을 남기지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setCommentBusyId(null);
+    }
+  }
+
   // Shared feedback modal — rendered from both the group-list screen and the
   // group detail screen (see call sites), so it's reachable from anywhere.
+  // Public to anyone using the app (no login exists to gate it with): shows
+  // everyone's submissions, paginated 10 at a time, with comments on each.
   function renderFeedbackModal() {
     if (!feedbackOpen) return null;
+    const totalPages = Math.max(1, Math.ceil(feedbackListTotal / 10));
     return (
       <div
         style={{
@@ -777,47 +829,113 @@ export default function GroupApp() {
             background: "var(--surface-2)",
             borderRadius: 16,
             padding: "1.25rem 1.4rem",
-            width: 340,
+            width: 400,
             maxWidth: "90vw",
+            maxHeight: "85vh",
+            overflowY: "auto",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>피드백 남기기</p>
+            <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>피드백</p>
             <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeFeedback} />
           </div>
-          {feedbackSubmitted ? (
-            <>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 16px" }}>
-                소중한 의견 감사해요. 잘 전달됐어요!
-              </p>
-              <button onClick={closeFeedback} style={{ width: "100%" }}>
-                닫기
-              </button>
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px" }}>
-                불편한 점, 버그, 건의사항을 자유롭게 남겨주세요.
-              </p>
-              <textarea
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="여기에 입력해 주세요"
-                rows={5}
-                style={{ width: "100%", marginBottom: 8, resize: "vertical", fontFamily: "inherit" }}
-              />
-              {feedbackError && (
-                <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackError}</p>
-              )}
-              <button
-                onClick={submitFeedback}
-                disabled={feedbackBusy || !feedbackText.trim()}
-                style={{ width: "100%" }}
-              >
-                {feedbackBusy ? "보내는 중..." : "제출하기"}
-              </button>
-            </>
+
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px" }}>
+            불편한 점, 버그, 건의사항을 자유롭게 남겨주세요.
+          </p>
+          <textarea
+            value={feedbackText}
+            onChange={(e) => {
+              setFeedbackText(e.target.value);
+              setFeedbackSubmitted(false);
+            }}
+            placeholder="여기에 입력해 주세요"
+            rows={3}
+            style={{ width: "100%", marginBottom: 8, resize: "vertical", fontFamily: "inherit" }}
+          />
+          {feedbackError && (
+            <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackError}</p>
           )}
+          {feedbackSubmitted && (
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>제출됐어요. 감사해요!</p>
+          )}
+          <button onClick={submitFeedback} disabled={feedbackBusy || !feedbackText.trim()} style={{ width: "100%", marginBottom: 16 }}>
+            {feedbackBusy ? "보내는 중..." : "제출하기"}
+          </button>
+
+          <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12 }}>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>
+              다른 사람들이 남긴 피드백{feedbackListTotal > 0 ? ` (${feedbackListTotal}건)` : ""}
+            </p>
+            {feedbackListLoading && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>불러오는 중...</p>}
+            {feedbackListError && (
+              <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackListError}</p>
+            )}
+            {!feedbackListLoading && feedbackList.length === 0 && (
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>아직 피드백이 없어요.</p>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {feedbackList.map((f) => (
+                <div key={f.id} style={{ border: "0.5px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 13, whiteSpace: "pre-wrap", margin: "0 0 6px" }}>{f.message}</p>
+                  <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 8px" }}>
+                    {new Date(f.created_at).toLocaleString("ko-KR")}
+                  </p>
+                  {f.comments.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+                      {f.comments.map((c) => (
+                        <div key={c.id} style={{ background: "var(--surface-1)", borderRadius: 6, padding: "6px 8px" }}>
+                          <p style={{ fontSize: 12, whiteSpace: "pre-wrap", margin: "0 0 2px" }}>{c.message}</p>
+                          <p style={{ fontSize: 10, color: "var(--text-muted)", margin: 0 }}>
+                            {new Date(c.created_at).toLocaleString("ko-KR")}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      value={commentDrafts[f.id] || ""}
+                      onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [f.id]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") submitComment(f.id);
+                      }}
+                      placeholder="댓글 달기"
+                      style={{ flex: 1, fontSize: 12, padding: "6px 8px" }}
+                    />
+                    <button
+                      onClick={() => submitComment(f.id)}
+                      disabled={commentBusyId === f.id || !(commentDrafts[f.id] || "").trim()}
+                      style={{ fontSize: 12, padding: "6px 10px" }}
+                    >
+                      등록
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 12 }}>
+                <button
+                  onClick={() => loadFeedbackList(feedbackPage - 1)}
+                  disabled={feedbackPage <= 1 || feedbackListLoading}
+                  style={{ fontSize: 12, padding: "6px 10px" }}
+                >
+                  이전
+                </button>
+                <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                  {feedbackPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => loadFeedbackList(feedbackPage + 1)}
+                  disabled={feedbackPage >= totalPages || feedbackListLoading}
+                  style={{ fontSize: 12, padding: "6px 10px" }}
+                >
+                  다음
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
