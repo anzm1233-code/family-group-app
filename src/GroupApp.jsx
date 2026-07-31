@@ -836,11 +836,11 @@ export default function GroupApp() {
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>피드백</p>
-            <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeFeedback} />
+            <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>피드백</p>
+            <X size={20} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeFeedback} />
           </div>
 
-          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 8px" }}>
             불편한 점, 버그, 건의사항을 자유롭게 남겨주세요.
           </p>
           <textarea
@@ -854,39 +854,39 @@ export default function GroupApp() {
             style={{ width: "100%", marginBottom: 8, resize: "vertical", fontFamily: "inherit" }}
           />
           {feedbackError && (
-            <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackError}</p>
+            <p style={{ fontSize: 14, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackError}</p>
           )}
           {feedbackSubmitted && (
-            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>제출됐어요. 감사해요!</p>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px" }}>제출됐어요. 감사해요!</p>
           )}
           <button onClick={submitFeedback} disabled={feedbackBusy || !feedbackText.trim()} style={{ width: "100%", marginBottom: 16 }}>
             {feedbackBusy ? "보내는 중..." : "제출하기"}
           </button>
 
           <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12 }}>
-            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px" }}>
               다른 사람들이 남긴 피드백{feedbackListTotal > 0 ? ` (${feedbackListTotal}건)` : ""}
             </p>
-            {feedbackListLoading && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>불러오는 중...</p>}
+            {feedbackListLoading && <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>불러오는 중...</p>}
             {feedbackListError && (
-              <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackListError}</p>
+              <p style={{ fontSize: 14, color: "var(--text-danger)", margin: "0 0 8px" }}>{feedbackListError}</p>
             )}
             {!feedbackListLoading && feedbackList.length === 0 && (
-              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>아직 피드백이 없어요.</p>
+              <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>아직 피드백이 없어요.</p>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {feedbackList.map((f) => (
                 <div key={f.id} style={{ border: "0.5px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
-                  <p style={{ fontSize: 13, whiteSpace: "pre-wrap", margin: "0 0 6px" }}>{f.message}</p>
-                  <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 8px" }}>
+                  <p style={{ fontSize: 15, whiteSpace: "pre-wrap", margin: "0 0 6px" }}>{f.message}</p>
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 8px" }}>
                     {new Date(f.created_at).toLocaleString("ko-KR")}
                   </p>
                   {f.comments.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
                       {f.comments.map((c) => (
                         <div key={c.id} style={{ background: "var(--surface-1)", borderRadius: 6, padding: "6px 8px" }}>
-                          <p style={{ fontSize: 12, whiteSpace: "pre-wrap", margin: "0 0 2px" }}>{c.message}</p>
-                          <p style={{ fontSize: 10, color: "var(--text-muted)", margin: 0 }}>
+                          <p style={{ fontSize: 14, whiteSpace: "pre-wrap", margin: "0 0 2px" }}>{c.message}</p>
+                          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
                             {new Date(c.created_at).toLocaleString("ko-KR")}
                           </p>
                         </div>
@@ -901,12 +901,12 @@ export default function GroupApp() {
                         if (e.key === "Enter") submitComment(f.id);
                       }}
                       placeholder="댓글 달기"
-                      style={{ flex: 1, fontSize: 12, padding: "6px 8px" }}
+                      style={{ flex: 1, fontSize: 14, padding: "6px 8px" }}
                     />
                     <button
                       onClick={() => submitComment(f.id)}
                       disabled={commentBusyId === f.id || !(commentDrafts[f.id] || "").trim()}
-                      style={{ fontSize: 12, padding: "6px 10px" }}
+                      style={{ fontSize: 14, padding: "6px 10px" }}
                     >
                       등록
                     </button>
@@ -919,17 +919,17 @@ export default function GroupApp() {
                 <button
                   onClick={() => loadFeedbackList(feedbackPage - 1)}
                   disabled={feedbackPage <= 1 || feedbackListLoading}
-                  style={{ fontSize: 12, padding: "6px 10px" }}
+                  style={{ fontSize: 14, padding: "6px 10px" }}
                 >
                   이전
                 </button>
-                <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>
                   {feedbackPage} / {totalPages}
                 </span>
                 <button
                   onClick={() => loadFeedbackList(feedbackPage + 1)}
                   disabled={feedbackPage >= totalPages || feedbackListLoading}
-                  style={{ fontSize: 12, padding: "6px 10px" }}
+                  style={{ fontSize: 14, padding: "6px 10px" }}
                 >
                   다음
                 </button>
@@ -1220,7 +1220,7 @@ export default function GroupApp() {
             "접기"
           ) : (
             <>
-              <Plus size={15} /> 일정추가
+              <Plus size={17} /> 일정추가
             </>
           )}
         </button>
@@ -1243,7 +1243,7 @@ export default function GroupApp() {
                   border: "0.5px solid var(--border)",
                   background: "var(--surface-2)",
                   color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
-                  fontSize: 14,
+                  fontSize: 16,
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
@@ -1293,14 +1293,14 @@ export default function GroupApp() {
                       cursor: "pointer",
                     }}
                   >
-                    <X size={9} />
+                    <X size={11} />
                   </div>
                 </div>
               ))}
               <button
                 onClick={() => newTaskPhotoInputRef.current?.click()}
                 style={{
-                  fontSize: 12,
+                  fontSize: 14,
                   padding: "6px 10px",
                   background: "transparent",
                   border: "0.5px dashed var(--border-strong)",
@@ -1310,12 +1310,12 @@ export default function GroupApp() {
                   gap: 4,
                 }}
               >
-                <Plus size={13} /> 사진 추가
+                <Plus size={15} /> 사진 추가
               </button>
               <button
                 onClick={() => setShowNewTaskLocation(true)}
                 style={{
-                  fontSize: 12,
+                  fontSize: 14,
                   padding: "6px 10px",
                   background: "transparent",
                   border: "0.5px dashed var(--border-strong)",
@@ -1332,13 +1332,13 @@ export default function GroupApp() {
                   </span>
                 ) : (
                   <>
-                    <MapPin size={13} /> 주소 추가
+                    <MapPin size={15} /> 주소 추가
                   </>
                 )}
               </button>
             </div>
             <div style={{ display: "flex", gap: 16, marginBottom: 10, marginTop: -2 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
                 <input
                   type="checkbox"
                   checked={newTaskBroadcast}
@@ -1349,7 +1349,7 @@ export default function GroupApp() {
                 />
                 전체에게 공지로 보내기
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
                 <input
                   type="checkbox"
                   checked={newTaskPrivate}
@@ -1367,7 +1367,7 @@ export default function GroupApp() {
               }}
               style={{ width: "100%", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
-              <Plus size={15} /> 추가
+              <Plus size={17} /> 추가
             </button>
           </>
         )}
@@ -1517,8 +1517,8 @@ export default function GroupApp() {
             padding: "1.1rem 1.25rem",
           }}
         >
-          <p style={{ fontWeight: 500, fontSize: 16, margin: "0 0 14px" }}>내 그룹</p>
-          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 14px" }}>
+          <p style={{ fontWeight: 600, fontSize: 18, margin: "0 0 14px" }}>내 그룹</p>
+          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 14px" }}>
             로그인 없이 링크만으로 함께 써요. 그룹 안 내용은 링크를 받은 멤버들과 함께 보고 수정할 수 있지만, 이
             "내 그룹" 목록은 이 브라우저에만 저장되는 개인 바로가기라 다른 사람이 내 그룹 전체 목록을 볼 수는
             없어요.
@@ -1550,23 +1550,23 @@ export default function GroupApp() {
                     justifyContent: "center",
                   }}
                 >
-                  <Users size={17} />
+                  <Users size={19} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{b.name}</p>
-                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{b.memberCount}명</p>
+                  <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{b.name}</p>
+                  <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>{b.memberCount}명</p>
                 </div>
-                <ChevronRight size={16} color="var(--text-muted)" />
+                <ChevronRight size={18} color="var(--text-muted)" />
               </div>
             ))}
             {bookmarks.length === 0 && (
-              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+              <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>
                 아직 만든 그룹이 없어요. 새로 만들거나, 공유받은 링크로 접속해 보세요.
               </p>
             )}
           </div>
           <button onClick={startCreate} style={{ width: "100%", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <Plus size={15} /> 새 그룹 만들기
+            <Plus size={17} /> 새 그룹 만들기
           </button>
           <button
             onClick={openFeedback}
@@ -1604,12 +1604,12 @@ export default function GroupApp() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <ChevronLeft
-              size={18}
+              size={20}
               color="var(--text-secondary)"
               style={{ cursor: "pointer" }}
               onClick={goBack}
             />
-            <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>새 그룹 만들기</p>
+            <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>새 그룹 만들기</p>
           </div>
 
           {createStep === "choose" && (
@@ -1640,11 +1640,11 @@ export default function GroupApp() {
                       justifyContent: "center",
                     }}
                   >
-                    <Users size={16} />
+                    <Users size={18} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{q.label}</p>
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+                    <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{q.label}</p>
+                    <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>
                       {key === "custom" ? "이름, 멤버를 자유롭게 정해요" : `예: ${q.defaultName}`}
                     </p>
                   </div>
@@ -1655,19 +1655,19 @@ export default function GroupApp() {
 
           {createStep === "name" && (
             <div>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>그룹 이름</p>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 6px" }}>그룹 이름</p>
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="그룹 이름을 입력하세요"
                 style={{ width: "100%", marginBottom: 16 }}
               />
-              <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>
+              <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 16px" }}>
                 만든 뒤에도 멤버 초대와 이름 변경은 언제든 가능해요. 생성되면 고유한 링크가 만들어지고, 그 링크로 들어오는
                 사람은 누구나 같은 그룹을 함께 볼 수 있어요.
               </p>
               {createError && (
-                <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 12px" }}>{createError}</p>
+                <p style={{ fontSize: 14, color: "var(--text-danger)", margin: "0 0 12px" }}>{createError}</p>
               )}
               <button onClick={confirmCreate} disabled={createBusy} style={{ width: "100%" }}>
                 {createBusy ? "만드는 중..." : "그룹 만들기"}
@@ -1692,10 +1692,10 @@ export default function GroupApp() {
             textAlign: "center",
           }}
         >
-          {groupLoading && <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>불러오는 중...</p>}
+          {groupLoading && <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: 0 }}>불러오는 중...</p>}
           {!groupLoading && groupLoadError === "not_found" && (
             <>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 14px" }}>
+              <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: "0 0 14px" }}>
                 존재하지 않거나 삭제된 그룹이에요.
               </p>
               <button
@@ -1711,7 +1711,7 @@ export default function GroupApp() {
           )}
           {!groupLoading && groupLoadError === "network" && (
             <>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 14px" }}>
+              <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: "0 0 14px" }}>
                 그룹을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
               </p>
               <button onClick={() => loadGroup(activeId)} style={{ width: "100%" }}>
@@ -1729,14 +1729,14 @@ export default function GroupApp() {
     <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <ChevronLeft size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goBack} />
-          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{tab === "calendar" ? "홈" : "내 그룹"}</span>
+          <ChevronLeft size={19} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goBack} />
+          <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>{tab === "calendar" ? "홈" : "내 그룹"}</span>
         </div>
         <span
           onClick={goToGroupsList}
-          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, color: "var(--text-secondary)", cursor: "pointer" }}
         >
-          <Home size={13} /> 내 그룹으로
+          <Home size={15} /> 내 그룹으로
         </span>
       </div>
 
@@ -1750,21 +1750,21 @@ export default function GroupApp() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
-            <p style={{ fontWeight: 500, fontSize: 16, margin: 0 }}>{active.name}</p>
-            <span style={{ fontSize: 11, background: active.accentBg, color: active.accent, padding: "2px 8px", borderRadius: 6 }}>
+            <p style={{ fontWeight: 600, fontSize: 18, margin: 0 }}>{active.name}</p>
+            <span style={{ fontSize: 13, background: active.accentBg, color: active.accent, padding: "2px 8px", borderRadius: 6 }}>
               {active.members.length}명
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <Share2
-              size={19}
+              size={21}
               color="var(--text-secondary)"
               style={{ cursor: "pointer" }}
               onClick={shareGroupLink}
               title="그룹 초대/공유하기"
             />
             <Settings
-              size={19}
+              size={21}
               color="var(--text-secondary)"
               style={{ cursor: "pointer" }}
               onClick={openGroupSettings}
@@ -1797,20 +1797,20 @@ export default function GroupApp() {
                     justifyContent: "center",
                   }}
                 >
-                  <Camera size={8} />
+                  <Camera size={10} />
                 </div>
               </div>
-              <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "3px 0 0" }}>{m.name}</p>
+              <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "3px 0 0" }}>{m.name}</p>
             </div>
           ))}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 12, color: "var(--text-secondary)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 14, color: "var(--text-secondary)" }}>
           <span>나:</span>
           <select
             value={myMemberId ?? ""}
             onChange={(e) => setWhoAmI(e.target.value || null)}
-            style={{ fontSize: 12, padding: "2px 6px" }}
+            style={{ fontSize: 14, padding: "2px 6px" }}
           >
             <option value="">선택 안 함</option>
             {active.members.map((m) => (
@@ -1826,7 +1826,7 @@ export default function GroupApp() {
             onClick={() => goToTab("home")}
             style={{
               flex: 1,
-              fontSize: 13,
+              fontSize: 15,
               padding: "8px",
               borderRadius: 8,
               border: tab === "home" ? `1px solid ${active.accent}` : "0.5px solid var(--border)",
@@ -1840,7 +1840,7 @@ export default function GroupApp() {
             onClick={() => goToTab("calendar")}
             style={{
               flex: 1,
-              fontSize: 13,
+              fontSize: 15,
               padding: "8px",
               borderRadius: 8,
               border: tab === "calendar" ? `1px solid ${active.accent}` : "0.5px solid var(--border)",
@@ -1862,13 +1862,13 @@ export default function GroupApp() {
               color: "var(--surface-2)",
               borderRadius: 8,
               padding: "8px 12px",
-              fontSize: 12,
+              fontSize: 14,
               marginBottom: 12,
             }}
           >
             <span>{toast.message}</span>
             {toast.undo && (
-              <span style={{ cursor: "pointer", fontWeight: 500, textDecoration: "underline" }} onClick={toast.undo}>
+              <span style={{ cursor: "pointer", fontWeight: 600, textDecoration: "underline" }} onClick={toast.undo}>
                 되돌리기
               </span>
             )}
@@ -1877,26 +1877,26 @@ export default function GroupApp() {
 
         {tab === "home" && (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
-                <Check size={14} /> {todayMonth}월 {today}일 할일 / 공지
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 6, marginBottom: 4 }}>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                <Check size={16} /> {todayMonth}월 {today}일 할일 / 공지
               </p>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
                   onClick={goToPrevDay}
-                  style={{ fontSize: 11, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
+                  style={{ fontSize: 13, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
                 >
                   ← 전날로
                 </button>
                 <button
                   onClick={carryOverToNextDay}
-                  style={{ fontSize: 11, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
+                  style={{ fontSize: 13, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
                 >
                   다음 날로 넘기기 →
                 </button>
               </div>
             </div>
-            <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "4px 0 8px" }}>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 8px" }}>
               완료 안 된 할일은 다음 날로 넘기면 자동 이월돼요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
@@ -1919,10 +1919,10 @@ export default function GroupApp() {
                   }}
                 >
                   <input type="checkbox" checked={t.done} onClick={(e) => e.stopPropagation()} onChange={() => toggleTask(t.id)} />
-                  {t.broadcast && <Megaphone size={16} color={active.accent} />}
+                  {t.broadcast && <Megaphone size={18} color={active.accent} />}
                   <span
                     style={{
-                      fontSize: 14,
+                      fontSize: 16,
                       flex: 1,
                       color: t.done ? "var(--text-muted)" : "var(--text-primary)",
                       textDecoration: t.done ? "line-through" : "none",
@@ -1930,13 +1930,13 @@ export default function GroupApp() {
                   >
                     {t.title}
                   </span>
-                  {(t.private || t.locked) && <Lock size={13} color="var(--text-muted)" />}
-                  {t.location && <MapPin size={14} color="var(--text-muted)" />}
-                  {t.due.includes(" ") && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
+                  {(t.private || t.locked) && <Lock size={15} color="var(--text-muted)" />}
+                  {t.location && <MapPin size={16} color="var(--text-muted)" />}
+                  {t.due.includes(" ") && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
                   {!t.broadcast && !t.private && t.assignee && (
-                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={14} photo={memberById[t.assignee]?.photo} />
+                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={16} photo={memberById[t.assignee]?.photo} />
                   )}
-                  <span style={{ fontSize: 11, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
+                  <span style={{ fontSize: 13, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
                     {t.broadcast ? "전체 공지" : t.private ? "나만 보기" : memberById[t.assignee]?.name}
                   </span>
                   {!t.broadcast && !t.done && isTaskDueToday(t) && (
@@ -1950,7 +1950,7 @@ export default function GroupApp() {
                     />
                   )}
                   <Trash2
-                    size={14}
+                    size={16}
                     color="var(--text-muted)"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1960,7 +1960,7 @@ export default function GroupApp() {
                 </div>
               ))}
               {active.tasks.filter((t) => isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))).length === 0 && (
-                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>오늘은 남은 할일이 없어요.</p>
+                <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>오늘은 남은 할일이 없어요.</p>
               )}
             </div>
 
@@ -1972,27 +1972,27 @@ export default function GroupApp() {
               today
             )}
 
-            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
-              <CalendarIcon size={14} /> 다가오는 일정
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+              <CalendarIcon size={16} /> 다가오는 일정
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {upcomingItems.length === 0 && (
-                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>다가오는 일정이 없어요.</p>
+                <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>다가오는 일정이 없어요.</p>
               )}
               {upcomingItems.map((item) =>
                 item.kind === "task" ? (
                   <div
                     key={`task-${item.id}`}
                     onClick={() => openTaskDetail(item.data)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, cursor: "pointer" }}
                   >
-                    <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>
+                    <div style={{ width: 34, textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>
                       {item.month}/{item.day}
                     </div>
-                    {item.data.broadcast && <Megaphone size={14} color={active.accent} />}
+                    {item.data.broadcast && <Megaphone size={16} color={active.accent} />}
                     <div style={{ flex: 1 }}>{item.data.title}</div>
                     {!item.data.broadcast && !item.data.private && item.data.assignee && (
-                      <Avatar tier={memberById[item.data.assignee]?.tier ?? 0} size={14} photo={memberById[item.data.assignee]?.photo} />
+                      <Avatar tier={memberById[item.data.assignee]?.tier ?? 0} size={16} photo={memberById[item.data.assignee]?.photo} />
                     )}
                   </div>
                 ) : (
@@ -2004,14 +2004,14 @@ export default function GroupApp() {
                       setSelectedDay(item.data.date);
                       goToTab("calendar");
                     }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, cursor: "pointer" }}
                   >
-                    <div style={{ width: 34, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>
+                    <div style={{ width: 34, textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>
                       {item.month}/{item.day}
                     </div>
                     <div style={{ flex: 1 }}>{item.data.title}</div>
                     <Bell
-                      size={13}
+                      size={15}
                       color={item.data.notify ? active.accent : "var(--border-strong)"}
                       fill={item.data.notify ? active.accent : "none"}
                       style={{ cursor: "pointer", opacity: item.data.notify ? 1 : 0.6 }}
@@ -2034,9 +2034,9 @@ export default function GroupApp() {
         {tab === "calendar" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <ChevronLeft size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goPrevMonth} />
-              <p style={{ fontWeight: 500, fontSize: 14, margin: 0 }}>{viewYear}년 {viewMonth}월</p>
-              <ChevronRight size={17} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goNextMonth} />
+              <ChevronLeft size={19} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goPrevMonth} />
+              <p style={{ fontWeight: 600, fontSize: 16, margin: 0 }}>{viewYear}년 {viewMonth}월</p>
+              <ChevronRight size={19} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goNextMonth} />
             </div>
 
             <div
@@ -2044,7 +2044,7 @@ export default function GroupApp() {
                 display: "grid",
                 gridTemplateColumns: "repeat(7,minmax(0,1fr))",
                 gap: 2,
-                fontSize: 10,
+                fontSize: 12,
                 color: "var(--text-muted)",
                 textAlign: "center",
                 marginBottom: 4,
@@ -2057,7 +2057,7 @@ export default function GroupApp() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 2 }}>
               {weeks.flat().map((d, i) => {
-                if (!d) return <div key={i} style={{ height: 48 }} />;
+                if (!d) return <div key={i} style={{ height: 60 }} />;
                 const assignees = dayAssignees(d);
                 const broadcastCount = tasksOnDay(d).filter((t) => t.broadcast).length;
                 const isSelected = d === selectedDay;
@@ -2069,26 +2069,26 @@ export default function GroupApp() {
                       setShowCalendarAddTaskForm(false);
                     }}
                     style={{
-                      height: 48,
+                      height: 60,
                       border: isSelected ? `1px solid ${active.accent}` : "0.5px solid var(--border)",
                       background: isSelected ? active.accentBg : "transparent",
                       borderRadius: 6,
                       padding: 3,
-                      fontSize: 10,
+                      fontSize: 12,
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 500 : 400 }}>{d}</div>
+                    <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 700 : 500 }}>{d}</div>
                     {(assignees.length > 0 || broadcastCount > 0) && (
                       <div style={{ display: "flex", gap: 1, marginTop: 2, alignItems: "center" }}>
                         {broadcastCount > 0 && (
                           <span style={{ display: "flex", alignItems: "center", gap: 1, color: active.accent }}>
-                            <Megaphone size={11} />
-                            {broadcastCount > 1 && <span style={{ fontSize: 9 }}>{broadcastCount}</span>}
+                            <Megaphone size={13} />
+                            {broadcastCount > 1 && <span style={{ fontSize: 11 }}>{broadcastCount}</span>}
                           </span>
                         )}
                         {assignees.slice(0, 2).map((a, idx) => (
-                          <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={13} photo={memberById[a]?.photo} />
+                          <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={15} photo={memberById[a]?.photo} />
                         ))}
                       </div>
                     )}
@@ -2099,28 +2099,28 @@ export default function GroupApp() {
 
             <div style={{ marginTop: 14, borderTop: "0.5px solid var(--border)", paddingTop: 10 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
-                <p style={{ fontSize: 12, fontWeight: 500, margin: 0 }}>{viewMonth}월 {selectedDay}일</p>
-                {selectedLunarLabel && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{selectedLunarLabel}</span>}
+                <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{viewMonth}월 {selectedDay}일</p>
+                {selectedLunarLabel && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{selectedLunarLabel}</span>}
               </div>
               {dayEvents.length === 0 && dayTasks.length === 0 && (
-                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>일정이 없어요.</p>
+                <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>일정이 없어요.</p>
               )}
               {dayEvents.map((e) => (
                 <div
                   key={"e" + e.id}
                   onClick={() => openEventDetail(e)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, marginBottom: 4, cursor: "pointer" }}
                 >
-                  <Avatar tier={memberById[e.assignees[0]]?.tier ?? 0} size={16} photo={memberById[e.assignees[0]]?.photo} />
+                  <Avatar tier={memberById[e.assignees[0]]?.tier ?? 0} size={18} photo={memberById[e.assignees[0]]?.photo} />
                   <span style={{ flex: 1 }}>{e.title}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{e.time}</span>
+                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{e.time}</span>
                 </div>
               ))}
               {dayTasks.map((t) => (
                 <div
                   key={"t" + t.id}
                   onClick={() => openTaskDetail(t)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 4, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, marginBottom: 4, cursor: "pointer" }}
                 >
                   <input
                     type="checkbox"
@@ -2128,7 +2128,7 @@ export default function GroupApp() {
                     onClick={(ev) => ev.stopPropagation()}
                     onChange={() => toggleTask(t.id)}
                   />
-                  {t.broadcast && <Megaphone size={14} color={active.accent} />}
+                  {t.broadcast && <Megaphone size={16} color={active.accent} />}
                   <span
                     style={{
                       flex: 1,
@@ -2138,12 +2138,12 @@ export default function GroupApp() {
                   >
                     {t.title}
                   </span>
-                  {t.private && <Lock size={12} color="var(--text-muted)" />}
-                  {t.location && <MapPin size={12} color="var(--text-muted)" />}
+                  {t.private && <Lock size={14} color="var(--text-muted)" />}
+                  {t.location && <MapPin size={14} color="var(--text-muted)" />}
                   {!t.broadcast && t.assignee && (
-                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={16} photo={memberById[t.assignee]?.photo} />
+                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={18} photo={memberById[t.assignee]?.photo} />
                   )}
-                  {t.due.includes(" ") && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
+                  {t.due.includes(" ") && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
                 </div>
               ))}
               <div style={{ marginTop: 10 }}>
@@ -2209,8 +2209,8 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>시간 선택</p>
-              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setTimePickerOpen(false)} />
+              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>시간 선택</p>
+              <X size={20} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setTimePickerOpen(false)} />
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
               <select value={tempAmPm} onChange={(e) => setTempAmPm(e.target.value)} style={{ flex: 1 }}>
@@ -2263,9 +2263,9 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>장소 검색</p>
+              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>장소 검색</p>
               <X
-                size={18}
+                size={20}
                 color="var(--text-secondary)"
                 style={{ cursor: "pointer" }}
                 onClick={() => setShowNewTaskLocation(false)}
@@ -2321,9 +2321,9 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>{draftLocation ? "장소 수정" : "장소 검색"}</p>
+              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>{draftLocation ? "장소 수정" : "장소 검색"}</p>
               <X
-                size={18}
+                size={20}
                 color="var(--text-secondary)"
                 style={{ cursor: "pointer" }}
                 onClick={() => setShowTaskLocationInput(false)}
@@ -2389,11 +2389,11 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>그룹 설정</p>
-              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeGroupSettings} />
+              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>그룹 설정</p>
+              <X size={20} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeGroupSettings} />
             </div>
 
-            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>그룹 이름</p>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 6px" }}>그룹 이름</p>
             <input
               value={draftGroupName}
               onChange={(e) => setDraftGroupName(e.target.value)}
@@ -2414,7 +2414,7 @@ export default function GroupApp() {
                 color: "var(--text-secondary)",
               }}
             >
-              <Share2 size={15} /> 그룹 초대/공유하기
+              <Share2 size={17} /> 그룹 초대/공유하기
             </button>
             <button
               onClick={openFeedback}
@@ -2429,7 +2429,7 @@ export default function GroupApp() {
               피드백 남기기
             </button>
 
-            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
             <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
               {draftMembers.map((m) => (
                 <div
@@ -2442,34 +2442,34 @@ export default function GroupApp() {
                     borderBottom: "0.5px solid var(--border)",
                   }}
                 >
-                  <Avatar tier={m.tier} photo={m.photo} size={24} />
+                  <Avatar tier={m.tier} photo={m.photo} size={26} />
                   <input
                     value={m.name}
                     onChange={(e) => renameDraftMember(m.id, e.target.value)}
-                    style={{ flex: 1, fontSize: 14, padding: "6px 8px" }}
+                    style={{ flex: 1, fontSize: 16, padding: "6px 8px" }}
                   />
                   {confirmRemoveMemberId === m.id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 12, color: "var(--text-danger)" }}>삭제할까요?</span>
+                      <span style={{ fontSize: 14, color: "var(--text-danger)" }}>삭제할까요?</span>
                       <button
                         onClick={() => {
                           removeDraftMember(m.id);
                           setConfirmRemoveMemberId(null);
                         }}
-                        style={{ fontSize: 12, padding: "4px 8px", background: "var(--text-danger)", color: "#fff", border: "none" }}
+                        style={{ fontSize: 14, padding: "4px 8px", background: "var(--text-danger)", color: "#fff", border: "none" }}
                       >
                         삭제
                       </button>
                       <button
                         onClick={() => setConfirmRemoveMemberId(null)}
-                        style={{ fontSize: 12, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)" }}
+                        style={{ fontSize: 14, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)" }}
                       >
                         취소
                       </button>
                     </div>
                   ) : (
                     <Trash2
-                      size={16}
+                      size={18}
                       color="var(--text-danger)"
                       style={{ cursor: "pointer" }}
                       onClick={() => setConfirmRemoveMemberId(m.id)}
@@ -2478,7 +2478,7 @@ export default function GroupApp() {
                 </div>
               ))}
               {draftMembers.length === 0 && (
-                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "8px 0" }}>구성원이 없어요.</p>
+                <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "8px 0" }}>구성원이 없어요.</p>
               )}
             </div>
 
@@ -2501,7 +2501,7 @@ export default function GroupApp() {
                 onClick={() => setShowAddMember(true)}
                 style={{ width: "100%", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
-                <Plus size={15} /> 멤버 추가
+                <Plus size={17} /> 멤버 추가
               </button>
             )}
 
@@ -2524,11 +2524,11 @@ export default function GroupApp() {
                     color: "var(--text-danger)",
                   }}
                 >
-                  <Trash2 size={14} /> 그룹 삭제
+                  <Trash2 size={16} /> 그룹 삭제
                 </button>
               ) : (
                 <>
-                  <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>
+                  <p style={{ fontSize: 14, color: "var(--text-danger)", margin: "0 0 8px" }}>
                     삭제하면 이 그룹의 할일·일정·멤버가 전부 사라지고 되돌릴 수 없어요. 계속하려면 "{DELETE_CONFIRM_PHRASE}"를 입력하세요.
                   </p>
                   <input
@@ -2538,7 +2538,7 @@ export default function GroupApp() {
                     style={{ width: "100%", marginBottom: 8 }}
                   />
                   {deleteError && (
-                    <p style={{ fontSize: 12, color: "var(--text-danger)", margin: "0 0 8px" }}>{deleteError}</p>
+                    <p style={{ fontSize: 14, color: "var(--text-danger)", margin: "0 0 8px" }}>{deleteError}</p>
                   )}
                   <div style={{ display: "flex", gap: 6 }}>
                     <button
@@ -2597,26 +2597,26 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>{openTask.broadcast ? "전체 공지" : "할일 상세"}</p>
-              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeTaskDetail} />
+              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>{openTask.broadcast ? "전체 공지" : "할일 상세"}</p>
+              <X size={20} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeTaskDetail} />
             </div>
 
             <input
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
               placeholder="할일 또는 공지 내용"
-              style={{ width: "100%", fontSize: 17, fontWeight: 500, margin: "0 0 4px", padding: "6px 8px" }}
+              style={{ width: "100%", fontSize: 19, fontWeight: 600, margin: "0 0 4px", padding: "6px 8px" }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 13, color: "var(--text-secondary)", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 15, color: "var(--text-secondary)", flexWrap: "wrap" }}>
               {openTask.broadcast ? (
                 <span>그룹 전체에게 알림</span>
               ) : (
                 <>
-                  <Avatar tier={memberById[draftAssignee]?.tier ?? 0} size={18} photo={memberById[draftAssignee]?.photo} />
+                  <Avatar tier={memberById[draftAssignee]?.tier ?? 0} size={20} photo={memberById[draftAssignee]?.photo} />
                   <select
                     value={draftAssignee ?? ""}
                     onChange={(e) => setDraftAssignee(e.target.value)}
-                    style={{ fontSize: 13, padding: "3px 6px" }}
+                    style={{ fontSize: 15, padding: "3px 6px" }}
                   >
                     {active.members.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -2632,20 +2632,20 @@ export default function GroupApp() {
                 type="date"
                 value={draftDueDate}
                 onChange={(e) => setDraftDueDate(e.target.value)}
-                style={{ fontSize: 12, padding: "3px 6px" }}
+                style={{ fontSize: 14, padding: "3px 6px" }}
               />
               <input
                 type="time"
                 value={draftDueTime}
                 onChange={(e) => setDraftDueTime(e.target.value)}
-                style={{ fontSize: 12, padding: "3px 6px" }}
+                style={{ fontSize: 14, padding: "3px 6px" }}
               />
             </div>
 
             {draftLocation && (
               <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
-                <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
-                  <MapPin size={14} /> 장소
+                <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                  <MapPin size={16} /> 장소
                 </p>
                 <div
                   onClick={() => {
@@ -2655,9 +2655,9 @@ export default function GroupApp() {
                   }}
                   style={{ border: "0.5px solid var(--border)", borderRadius: 8, padding: "10px 12px", cursor: "pointer" }}
                 >
-                  <p style={{ fontSize: 14, margin: "0 0 2px" }}>{draftLocation.name}</p>
+                  <p style={{ fontSize: 16, margin: "0 0 2px" }}>{draftLocation.name}</p>
                   {draftLocation.address && (
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{draftLocation.address}</p>
+                    <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>{draftLocation.address}</p>
                   )}
                 </div>
                 {draftLocation.address && (
@@ -2671,7 +2671,7 @@ export default function GroupApp() {
                     }
                     style={{ width: "100%", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                   >
-                    <Navigation size={15} /> 길찾기 시작
+                    <Navigation size={17} /> 길찾기 시작
                   </button>
                 )}
               </div>
@@ -2679,8 +2679,8 @@ export default function GroupApp() {
 
             {!draftLocation && (
               <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
-                <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
-                  <MapPin size={14} /> 장소
+                <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                  <MapPin size={16} /> 장소
                 </p>
                 <button
                   onClick={() => {
@@ -2699,14 +2699,14 @@ export default function GroupApp() {
                     color: "var(--text-secondary)",
                   }}
                 >
-                  <Plus size={15} /> 주소 추가
+                  <Plus size={17} /> 주소 추가
                 </button>
               </div>
             )}
 
             <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
-                <Camera size={14} /> 첨부 사진
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                <Camera size={16} /> 첨부 사진
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {draftPhotos.map((src, idx) => (
@@ -2730,18 +2730,18 @@ export default function GroupApp() {
                     cursor: "pointer",
                   }}
                 >
-                  <Plus size={17} color="var(--text-muted)" />
+                  <Plus size={19} color="var(--text-muted)" />
                 </div>
               </div>
             </div>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 16, borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
               <input type="checkbox" checked={openTask.done} onChange={() => toggleTask(openTask.id)} />
               완료로 표시
             </label>
 
             {!openTask.broadcast && (
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, marginBottom: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 16, marginBottom: 12 }}>
                 <input type="checkbox" checked={draftPrivate} onChange={() => setDraftPrivate((prev) => !prev)} />
                 나만 보기 (해제하면 전체 일정으로 전환돼요)
               </label>
@@ -2764,7 +2764,7 @@ export default function GroupApp() {
                 color: openTask.locked ? "var(--text-muted)" : "var(--text-danger)",
               }}
             >
-              <Trash2 size={14} /> {openTask.locked ? "잠긴 항목 (삭제 불가)" : "삭제하기"}
+              <Trash2 size={16} /> {openTask.locked ? "잠긴 항목 (삭제 불가)" : "삭제하기"}
             </button>
           </div>
         </div>
@@ -2794,26 +2794,26 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <p style={{ fontWeight: 500, fontSize: 15, margin: 0 }}>일정 상세</p>
-              <X size={18} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeEventDetail} />
+              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>일정 상세</p>
+              <X size={20} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeEventDetail} />
             </div>
 
-            <p style={{ fontSize: 17, fontWeight: 500, margin: "0 0 4px" }}>{openEvent.title}</p>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+            <p style={{ fontSize: 19, fontWeight: 600, margin: "0 0 4px" }}>{openEvent.title}</p>
+            <div style={{ fontSize: 15, color: "var(--text-secondary)", marginBottom: 4 }}>
               {viewMonth}월 {openEvent.date}일 · {openEvent.time}
             </div>
             {(() => {
               const lunar = getLunarLabel(viewYear, viewMonth, openEvent.date);
-              return lunar ? <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>{lunar}</div> : null;
+              return lunar ? <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 12 }}>{lunar}</div> : null;
             })()}
 
             <div style={{ borderTop: "0.5px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>참석자</p>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px" }}>참석자</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {openEvent.assignees.map((a) => (
                   <div key={a} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Avatar tier={memberById[a]?.tier ?? 0} size={20} photo={memberById[a]?.photo} />
-                    <span style={{ fontSize: 14 }}>{memberById[a]?.name}</span>
+                    <Avatar tier={memberById[a]?.tier ?? 0} size={22} photo={memberById[a]?.photo} />
+                    <span style={{ fontSize: 16 }}>{memberById[a]?.name}</span>
                   </div>
                 ))}
               </div>
@@ -2824,7 +2824,7 @@ export default function GroupApp() {
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                fontSize: 14,
+                fontSize: 16,
                 borderTop: "0.5px solid var(--border)",
                 paddingTop: 12,
               }}

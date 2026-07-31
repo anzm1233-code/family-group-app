@@ -40,6 +40,7 @@ body {
   background: var(--surface-1);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  font-weight: 500;
 }
 
 #root {
@@ -54,7 +55,8 @@ body {
 
 button {
   font-family: inherit;
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 500;
   padding: 10px 14px;
   border-radius: 8px;
   border: 0.5px solid var(--border);
@@ -70,7 +72,7 @@ button:active {
 input,
 select {
   font-family: inherit;
-  font-size: 14px;
+  font-size: 16px;
   padding: 8px 10px;
   border-radius: 8px;
   border: 0.5px solid var(--border);
