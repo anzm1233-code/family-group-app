@@ -375,6 +375,9 @@ export default function GroupApp() {
   const [tempHour, setTempHour] = useState(12);
   const [tempMinute, setTempMinute] = useState(0);
 
+  const [carryOverDatePickerOpen, setCarryOverDatePickerOpen] = useState(false);
+  const [carryOverTargetDate, setCarryOverTargetDate] = useState(""); // yyyy-mm-dd, for <input type="date">
+
   const [showTaskLocationInput, setShowTaskLocationInput] = useState(false);
   const [taskLocationName, setTaskLocationName] = useState("");
   const [taskLocationAddress, setTaskLocationAddress] = useState("");
@@ -1249,6 +1252,38 @@ export default function GroupApp() {
     setCarryOverIncluded(new Set());
   }
 
+  function openCarryOverDatePicker() {
+    if (carryOverIncluded.size === 0) {
+      setToast({ message: "옮길 일정을 먼저 체크해주세요", undo: null });
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+    setCarryOverTargetDate("");
+    setCarryOverDatePickerOpen(true);
+  }
+
+  // Reschedules the checked tasks to a specific date the user picks (any day,
+  // not just tomorrow), without moving the 오늘 할일 view itself — unlike
+  // carryOverToNextDay, which is a same-day-forward rollover.
+  function confirmCarryOverToDate() {
+    if (!carryOverTargetDate) return;
+    const [, targetMonth, targetDay] = carryOverTargetDate.split("-").map((v) => parseInt(v, 10));
+    const dueById = new Map();
+    (active?.tasks || []).forEach((t) => {
+      if (t.done || !isTaskDueToday(t) || !carryOverIncluded.has(t.id)) return;
+      const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
+      dueById.set(t.id, `${targetMonth}/${targetDay}${timePart}`);
+    });
+    const updates = Array.from(dueById, ([taskId, due]) => ({ taskId, due }));
+    runGroupOp(
+      { op: "bulkSetTaskDue", updates },
+      (g) => ({ ...g, tasks: g.tasks.map((t) => (dueById.has(t.id) ? { ...t, due: dueById.get(t.id) } : t)) })
+    );
+    setCarryOverIncluded(new Set());
+    setCarryOverDatePickerOpen(false);
+    setCarryOverTargetDate("");
+  }
+
   function addTask(dueMonth = todayMonth, dueDay = today) {
     if (!newTaskTitle.trim()) return false;
     const task = {
@@ -2038,10 +2073,16 @@ export default function GroupApp() {
                 >
                   다음 날로 넘기기 →
                 </button>
+                <button
+                  onClick={openCarryOverDatePicker}
+                  style={{ fontSize: 13, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
+                >
+                  다른 날짜로 옮기기
+                </button>
               </div>
             </div>
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 8px" }}>
-              완료 안 된 할일은 다음 날로 넘기면 자동 이월돼요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
+              완료 안 된 할일은 다음 날로 넘기면 자동 이월돼요. 오른쪽 체크박스로 여러 개를 골라 원하는 날짜로 한번에 옮길 수도 있어요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {active.tasks
@@ -2405,6 +2446,56 @@ export default function GroupApp() {
               </select>
             </div>
             <button onClick={confirmTimePicker} style={{ width: "100%" }}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {carryOverDatePickerOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={() => setCarryOverDatePickerOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 280,
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>날짜 선택</p>
+              <X
+                size={22}
+                color="var(--text-secondary)"
+                style={{ cursor: "pointer" }}
+                onClick={() => setCarryOverDatePickerOpen(false)}
+              />
+            </div>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+              체크한 {carryOverIncluded.size}개 일정을 옮길 날짜를 골라주세요.
+            </p>
+            <input
+              type="date"
+              value={carryOverTargetDate}
+              onChange={(e) => setCarryOverTargetDate(e.target.value)}
+              style={{ width: "100%", marginBottom: 20 }}
+            />
+            <button onClick={confirmCarryOverToDate} disabled={!carryOverTargetDate} style={{ width: "100%" }}>
               확인
             </button>
           </div>
