@@ -1253,11 +1253,6 @@ export default function GroupApp() {
   }
 
   function openCarryOverDatePicker() {
-    if (carryOverIncluded.size === 0) {
-      setToast({ message: "옮길 일정을 먼저 체크해주세요", undo: null });
-      setTimeout(() => setToast(null), 2500);
-      return;
-    }
     setCarryOverTargetDate("");
     setCarryOverDatePickerOpen(true);
   }
@@ -2073,17 +2068,25 @@ export default function GroupApp() {
                 >
                   다음 날로 넘기기 →
                 </button>
-                <button
-                  onClick={openCarryOverDatePicker}
-                  style={{ fontSize: 13, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
-                >
-                  다른 날짜로 옮기기
-                </button>
               </div>
             </div>
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 8px" }}>
-              완료 안 된 할일은 다음 날로 넘기면 자동 이월돼요. 오른쪽 체크박스로 여러 개를 골라 원하는 날짜로 한번에 옮길 수도 있어요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
+              완료 안 된 할일은 다음 날로 넘기면 자동 이월돼요. 자물쇠는 나만 보기(또는 잠긴 항목)를 뜻해요.
             </p>
+            {carryOverIncluded.size > 0 && (
+              <button
+                onClick={openCarryOverDatePicker}
+                style={{
+                  width: "100%",
+                  marginBottom: 10,
+                  background: "transparent",
+                  border: `0.5px solid ${active.accent}`,
+                  color: active.accent,
+                }}
+              >
+                선택한 {carryOverIncluded.size}개 일정을 다른 날짜로 옮기기 →
+              </button>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {active.tasks
                 .filter((t) => isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t)))
