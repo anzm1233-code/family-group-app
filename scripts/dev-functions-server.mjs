@@ -39,7 +39,7 @@ const server = createServer(async (req, res) => {
   try {
     const response = await handler(request);
     const text = await response.text();
-    res.writeHead(response.status, { "content-type": response.headers.get("content-type") || "application/json" });
+    res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
     res.end(text);
   } catch (err) {
     console.error(err);

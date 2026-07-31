@@ -44,10 +44,14 @@ function rowToGroup(row) {
   };
 }
 
+// no-store: this is live, shared, frequently-polled data — any intermediary
+// (mobile carrier caching proxies especially, which are common on Korean
+// cellular networks) serving a cached copy would silently show stale group
+// state on that device while everyone else sees the current data.
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 }
 
