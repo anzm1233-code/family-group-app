@@ -394,6 +394,7 @@ export default function GroupApp() {
   const [draftMembers, setDraftMembers] = useState([]);
   const [draftGroupName, setDraftGroupName] = useState("");
   const [confirmRemoveMemberId, setConfirmRemoveMemberId] = useState(null);
+  const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState(null);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -2083,14 +2084,38 @@ export default function GroupApp() {
                         title="다음 날로 넘기기 선택"
                       />
                     )}
-                    <Trash2
-                      size={18}
-                      color="var(--text-muted)"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteTask(t);
-                      }}
-                    />
+                    {confirmDeleteTaskId === t.id ? (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        <span style={{ fontSize: 13, color: "var(--text-danger)" }}>삭제할까요?</span>
+                        <button
+                          onClick={() => {
+                            deleteTask(t);
+                            setConfirmDeleteTaskId(null);
+                          }}
+                          style={{ fontSize: 13, padding: "4px 8px", background: "var(--text-danger)", color: "#fff", border: "none" }}
+                        >
+                          삭제
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteTaskId(null)}
+                          style={{ fontSize: 13, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <Trash2
+                        size={18}
+                        color="var(--text-muted)"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteTaskId(t.id);
+                        }}
+                      />
+                    )}
                   </div>
                   <span
                     style={{
@@ -2616,7 +2641,7 @@ export default function GroupApp() {
                         </button>
                         <button
                           onClick={() => setConfirmRemoveMemberId(null)}
-                          style={{ fontSize: 14, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)" }}
+                          style={{ fontSize: 14, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)", color: "var(--text-secondary)" }}
                         >
                           취소
                         </button>
