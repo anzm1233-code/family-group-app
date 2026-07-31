@@ -939,7 +939,7 @@ export default function GroupApp() {
                         if (e.key === "Enter") submitComment(f.id);
                       }}
                       placeholder="댓글 달기"
-                      style={{ flex: 1, fontSize: 14, padding: "6px 8px" }}
+                      style={{ flex: 1, minWidth: 0, fontSize: 14, padding: "6px 8px" }}
                     />
                     <button
                       onClick={() => submitComment(f.id)}
@@ -1270,7 +1270,7 @@ export default function GroupApp() {
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 placeholder="할일 또는 공지 내용"
-                style={{ flex: 1 }}
+                style={{ flex: 1, minWidth: 0 }}
               />
               <div
                 onClick={openTimePicker}
@@ -2387,7 +2387,7 @@ export default function GroupApp() {
               style={{ width: "100%", marginBottom: 8 }}
             />
             <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-              <input value={newTaskLocationAddress} readOnly placeholder="주소 검색으로 입력돼요" style={{ flex: 1 }} />
+              <input value={newTaskLocationAddress} readOnly placeholder="주소 검색으로 입력돼요" style={{ flex: 1, minWidth: 0 }} />
               <button
                 onClick={() =>
                   searchAddress((address, buildingName) => {
@@ -2447,7 +2447,7 @@ export default function GroupApp() {
               style={{ width: "100%", marginBottom: 8 }}
             />
             <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-              <input value={taskLocationAddress} readOnly placeholder="주소 검색으로 입력돼요 (선택)" style={{ flex: 1 }} />
+              <input value={taskLocationAddress} readOnly placeholder="주소 검색으로 입력돼요 (선택)" style={{ flex: 1, minWidth: 0 }} />
               <button
                 onClick={() =>
                   searchAddress((address, buildingName) => {
@@ -2559,7 +2559,7 @@ export default function GroupApp() {
                   <input
                     value={m.name}
                     onChange={(e) => renameDraftMember(m.id, e.target.value)}
-                    style={{ flex: 1, fontSize: 16, padding: "6px 8px" }}
+                    style={{ flex: 1, minWidth: 0, fontSize: 16, padding: "6px 8px" }}
                   />
                   {confirmRemoveMemberId === m.id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2605,7 +2605,7 @@ export default function GroupApp() {
                     if (e.key === "Enter") addDraftMember();
                   }}
                   placeholder="멤버 이름"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 0 }}
                 />
                 <button onClick={addDraftMember}>추가</button>
               </div>
