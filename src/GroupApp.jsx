@@ -207,6 +207,27 @@ function saveWhoAmIMap(map) {
   }
 }
 
+// Tracks which groups' "당신은 누구인가요?" prompt has been skipped on this
+// device, so declining once doesn't nag on every future visit.
+const WHOAMI_PROMPT_DISMISSED_KEY = "familyGroupApp:whoAmIPromptDismissed";
+
+function loadWhoAmIPromptDismissed() {
+  try {
+    const raw = localStorage.getItem(WHOAMI_PROMPT_DISMISSED_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveWhoAmIPromptDismissed(map) {
+  try {
+    localStorage.setItem(WHOAMI_PROMPT_DISMISSED_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
 function bookmarkFromGroup(group) {
   return {
     id: group.id,
@@ -285,6 +306,7 @@ export default function GroupApp() {
   const [groups, setGroups] = useState([]);
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [whoAmIMap, setWhoAmIMap] = useState(() => loadWhoAmIMap());
+  const [whoAmIPromptDismissed, setWhoAmIPromptDismissed] = useState(() => loadWhoAmIPromptDismissed());
   const [groupLoading, setGroupLoading] = useState(!!initialGroupId);
   const [groupLoadError, setGroupLoadError] = useState(null);
   // A deep link always wins. Otherwise: nothing saved yet means this is very
@@ -400,6 +422,22 @@ export default function GroupApp() {
       return next;
     });
   }
+
+  function dismissWhoAmIPrompt() {
+    setWhoAmIPromptDismissed((prev) => {
+      const next = { ...prev, [activeId]: true };
+      saveWhoAmIPromptDismissed(next);
+      return next;
+    });
+  }
+
+  function pickWhoAmIFromPrompt(memberId) {
+    setWhoAmI(memberId);
+    dismissWhoAmIPrompt();
+  }
+
+  const shouldShowWhoAmIPrompt =
+    view === "app" && !!active && active.members.length > 0 && !myMemberId && !whoAmIPromptDismissed[activeId];
 
   const avatarFileInputRef = useRef(null);
   const [avatarUploadMemberId, setAvatarUploadMemberId] = useState(null);
@@ -1878,6 +1916,64 @@ export default function GroupApp() {
                 되돌리기
               </span>
             )}
+          </div>
+        )}
+
+        {shouldShowWhoAmIPrompt && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.45)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 25,
+            }}
+          >
+            <div
+              style={{
+                background: "var(--surface-2)",
+                borderRadius: 16,
+                padding: "1.25rem 1.4rem",
+                width: 340,
+                maxWidth: "90vw",
+                maxHeight: "85vh",
+                overflowY: "auto",
+              }}
+            >
+              <p style={{ fontWeight: 600, fontSize: 17, margin: "0 0 8px" }}>당신은 누구인가요?</p>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 14px" }}>
+                본인의 이름을 클릭해 주세요.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                {active.members.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => pickWhoAmIFromPrompt(m.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      background: "transparent",
+                      border: "0.5px solid var(--border)",
+                      color: "var(--text-primary)",
+                      padding: "8px 10px",
+                      justifyContent: "flex-start",
+                    }}
+                  >
+                    <Avatar tier={m.tier} photo={m.photo} size={28} />
+                    <span style={{ fontSize: 15 }}>{m.name}</span>
+                  </button>
+                ))}
+              </div>
+              <span
+                onClick={dismissWhoAmIPrompt}
+                style={{ display: "block", textAlign: "center", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                나중에 선택할게요
+              </span>
+            </div>
           </div>
         )}
 
