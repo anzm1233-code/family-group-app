@@ -1908,8 +1908,8 @@ export default function GroupApp() {
                   onClick={() => openTaskDetail(t)}
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: 10,
+                    flexDirection: "column",
+                    gap: 4,
                     border: t.broadcast ? `1px solid ${active.accent}` : "0.5px solid var(--border)",
                     background: t.broadcast ? active.accentBg : "transparent",
                     borderRadius: 8,
@@ -1918,45 +1918,48 @@ export default function GroupApp() {
                     opacity: t.private ? 0.85 : 1,
                   }}
                 >
-                  <input type="checkbox" checked={t.done} onClick={(e) => e.stopPropagation()} onChange={() => toggleTask(t.id)} />
-                  {t.broadcast && <Megaphone size={20} color={active.accent} />}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <input type="checkbox" checked={t.done} onClick={(e) => e.stopPropagation()} onChange={() => toggleTask(t.id)} />
+                    {t.broadcast && <Megaphone size={20} color={active.accent} />}
+                    <span style={{ fontSize: 13, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
+                      {t.broadcast ? "전체 공지" : t.private ? "나만 보기" : memberById[t.assignee]?.name}
+                    </span>
+                    {(t.private || t.locked) && <Lock size={17} color="var(--text-muted)" />}
+                    {t.location && <MapPin size={18} color="var(--text-muted)" />}
+                    {t.due.includes(" ") && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
+                    <div style={{ flex: 1 }} />
+                    {!t.broadcast && !t.private && t.assignee && (
+                      <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={18} photo={memberById[t.assignee]?.photo} />
+                    )}
+                    {!t.broadcast && !t.done && isTaskDueToday(t) && (
+                      <input
+                        type="checkbox"
+                        checked={carryOverIncluded.has(t.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggleCarryOverSelection(t.id)}
+                        title="다음 날로 넘기기 선택"
+                        style={{ accentColor: active.accent }}
+                      />
+                    )}
+                    <Trash2
+                      size={18}
+                      color="var(--text-muted)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteTask(t);
+                      }}
+                    />
+                  </div>
                   <span
                     style={{
                       fontSize: 16,
-                      flex: 1,
+                      paddingLeft: 26,
                       color: t.done ? "var(--text-muted)" : "var(--text-primary)",
                       textDecoration: t.done ? "line-through" : "none",
                     }}
                   >
                     {t.title}
                   </span>
-                  {(t.private || t.locked) && <Lock size={17} color="var(--text-muted)" />}
-                  {t.location && <MapPin size={18} color="var(--text-muted)" />}
-                  {t.due.includes(" ") && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
-                  {!t.broadcast && !t.private && t.assignee && (
-                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={18} photo={memberById[t.assignee]?.photo} />
-                  )}
-                  <span style={{ fontSize: 13, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
-                    {t.broadcast ? "전체 공지" : t.private ? "나만 보기" : memberById[t.assignee]?.name}
-                  </span>
-                  {!t.broadcast && !t.done && isTaskDueToday(t) && (
-                    <input
-                      type="checkbox"
-                      checked={carryOverIncluded.has(t.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={() => toggleCarryOverSelection(t.id)}
-                      title="다음 날로 넘기기 선택"
-                      style={{ accentColor: active.accent }}
-                    />
-                  )}
-                  <Trash2
-                    size={18}
-                    color="var(--text-muted)"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteTask(t);
-                    }}
-                  />
                 </div>
               ))}
               {active.tasks.filter((t) => isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))).length === 0 && (
