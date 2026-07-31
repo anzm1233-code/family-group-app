@@ -1730,13 +1730,13 @@ export default function GroupApp() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <ChevronLeft size={21} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goBack} />
-          <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>{tab === "calendar" ? "홈" : "내 그룹"}</span>
+          <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>뒤로가기</span>
         </div>
         <span
           onClick={goToGroupsList}
           style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, color: "var(--text-secondary)", cursor: "pointer" }}
         >
-          <Home size={17} /> 내 그룹으로
+          <Home size={17} /> 홈으로가기
         </span>
       </div>
 
