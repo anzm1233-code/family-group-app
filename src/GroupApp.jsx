@@ -228,6 +228,33 @@ function saveWhoAmIPromptDismissed(map) {
   }
 }
 
+// Marks which groups this browser created, so group deletion and removing
+// other members can be limited to the creator. This is a device-local flag,
+// not real identity — there's no login, so it can't follow the creator to a
+// different browser/device, and someone who knows what they're doing could
+// forge it. It's meant to stop accidental/casual misuse, the same trust
+// level as everything else in this app, not to be tamper-proof.
+const OWNED_GROUPS_KEY = "familyGroupApp:ownedGroups";
+
+function loadOwnedGroups() {
+  try {
+    const raw = localStorage.getItem(OWNED_GROUPS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function markGroupOwned(groupId) {
+  try {
+    const map = loadOwnedGroups();
+    map[groupId] = true;
+    localStorage.setItem(OWNED_GROUPS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
 function bookmarkFromGroup(group) {
   return {
     id: group.id,
@@ -307,6 +334,7 @@ export default function GroupApp() {
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [whoAmIMap, setWhoAmIMap] = useState(() => loadWhoAmIMap());
   const [whoAmIPromptDismissed, setWhoAmIPromptDismissed] = useState(() => loadWhoAmIPromptDismissed());
+  const [ownedGroups, setOwnedGroups] = useState(() => loadOwnedGroups());
   const [groupLoading, setGroupLoading] = useState(!!initialGroupId);
   const [groupLoadError, setGroupLoadError] = useState(null);
   // A deep link always wins. Otherwise: nothing saved yet means this is very
@@ -397,6 +425,7 @@ export default function GroupApp() {
   const selectedAssignee =
     active && active.members.some((m) => m.id === newTaskAssignee) ? newTaskAssignee : active?.members[0]?.id ?? "";
   const myMemberId = activeId && whoAmIMap[activeId] && memberById[whoAmIMap[activeId]] ? whoAmIMap[activeId] : null;
+  const isGroupOwner = !!(activeId && ownedGroups[activeId]);
 
   // "다가오는 일정" preview: tasks and events landing in the next two days only
   // (today's and overdue items belong in 오늘 할일 instead). Anything further
@@ -664,6 +693,8 @@ export default function GroupApp() {
       });
       if (!res.ok) throw new Error("create_failed");
       const group = await res.json();
+      markGroupOwned(group.id);
+      setOwnedGroups((prev) => ({ ...prev, [group.id]: true }));
       setGroups((prev) => [...prev, applyNotifyPrefs([group])[0]]);
       setBookmarks((prev) => {
         const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
@@ -2561,33 +2592,34 @@ export default function GroupApp() {
                     onChange={(e) => renameDraftMember(m.id, e.target.value)}
                     style={{ flex: 1, minWidth: 0, fontSize: 16, padding: "6px 8px" }}
                   />
-                  {confirmRemoveMemberId === m.id ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 14, color: "var(--text-danger)" }}>삭제할까요?</span>
-                      <button
-                        onClick={() => {
-                          removeDraftMember(m.id);
-                          setConfirmRemoveMemberId(null);
-                        }}
-                        style={{ fontSize: 14, padding: "4px 8px", background: "var(--text-danger)", color: "#fff", border: "none" }}
-                      >
-                        삭제
-                      </button>
-                      <button
-                        onClick={() => setConfirmRemoveMemberId(null)}
-                        style={{ fontSize: 14, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)" }}
-                      >
-                        취소
-                      </button>
-                    </div>
-                  ) : (
-                    <Trash2
-                      size={20}
-                      color="var(--text-danger)"
-                      style={{ cursor: "pointer" }}
-                      onClick={() => setConfirmRemoveMemberId(m.id)}
-                    />
-                  )}
+                  {(isGroupOwner || m.id === myMemberId) &&
+                    (confirmRemoveMemberId === m.id ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 14, color: "var(--text-danger)" }}>삭제할까요?</span>
+                        <button
+                          onClick={() => {
+                            removeDraftMember(m.id);
+                            setConfirmRemoveMemberId(null);
+                          }}
+                          style={{ fontSize: 14, padding: "4px 8px", background: "var(--text-danger)", color: "#fff", border: "none" }}
+                        >
+                          삭제
+                        </button>
+                        <button
+                          onClick={() => setConfirmRemoveMemberId(null)}
+                          style={{ fontSize: 14, padding: "4px 8px", background: "transparent", border: "0.5px solid var(--border)" }}
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <Trash2
+                        size={20}
+                        color="var(--text-danger)"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => setConfirmRemoveMemberId(m.id)}
+                      />
+                    ))}
                 </div>
               ))}
               {draftMembers.length === 0 && (
@@ -2622,6 +2654,7 @@ export default function GroupApp() {
               수정 완료
             </button>
 
+            {isGroupOwner && (
             <div style={{ borderTop: "0.5px solid var(--border)", marginTop: 16, paddingTop: 12 }}>
               {!deleteConfirmOpen ? (
                 <button
@@ -2682,6 +2715,7 @@ export default function GroupApp() {
                 </>
               )}
             </div>
+            )}
           </div>
         </div>
       )}
