@@ -2206,6 +2206,8 @@ export default function GroupApp() {
               padding: "1.25rem 1.4rem",
               width: 280,
               maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -2260,6 +2262,8 @@ export default function GroupApp() {
               padding: "1.25rem 1.4rem",
               width: 320,
               maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -2318,6 +2322,8 @@ export default function GroupApp() {
               padding: "1.25rem 1.4rem",
               width: 320,
               maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -2386,6 +2392,8 @@ export default function GroupApp() {
               padding: "1.25rem 1.4rem",
               width: 340,
               maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -2594,6 +2602,8 @@ export default function GroupApp() {
               padding: "1.25rem 1.4rem",
               width: 340,
               maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -2791,6 +2801,8 @@ export default function GroupApp() {
               padding: "1.25rem 1.4rem",
               width: 340,
               maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
