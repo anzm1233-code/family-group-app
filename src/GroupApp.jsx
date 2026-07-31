@@ -1234,7 +1234,7 @@ export default function GroupApp() {
     }
     const dueById = new Map();
     (active?.tasks || []).forEach((t) => {
-      if (t.broadcast || t.done || !isTaskDueToday(t) || !carryOverIncluded.has(t.id)) return;
+      if (t.done || !isTaskDueToday(t) || !carryOverIncluded.has(t.id)) return;
       const timePart = t.due.includes(" ") ? " " + t.due.split(" ")[1] : "";
       dueById.set(t.id, `${nextMonth}/${nextDay}${timePart}`);
     });
@@ -2075,7 +2075,7 @@ export default function GroupApp() {
                     {!t.broadcast && !t.private && t.assignee && (
                       <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={18} photo={memberById[t.assignee]?.photo} />
                     )}
-                    {!t.broadcast && !t.done && isTaskDueToday(t) && (
+                    {!t.done && isTaskDueToday(t) && (
                       <input
                         type="checkbox"
                         checked={carryOverIncluded.has(t.id)}
