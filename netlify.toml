@@ -7,3 +7,23 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Every route serves index.html via the redirect above, and index.html has
+# no content hash in its filename - so unlike /assets/* it must never be
+# cached without revalidation. Otherwise a phone (or, in practice, a mobile
+# carrier's caching proxy) can keep serving a stale index.html that points
+# at an old, already-superseded JS bundle indefinitely, even though new code
+# has long since been deployed. Netlify applies the last matching rule for a
+# given header, so the more specific /assets/* rule below overrides this one
+# for hashed asset files.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+# Vite fingerprints these with a content hash, so a given filename's content
+# never changes - safe to cache for as long as possible.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
