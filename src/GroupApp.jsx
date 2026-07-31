@@ -1855,6 +1855,12 @@ export default function GroupApp() {
         {toast && (
           <div
             style={{
+              position: "fixed",
+              top: 16,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 30,
+              width: "min(400px, 90vw)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
@@ -1863,7 +1869,7 @@ export default function GroupApp() {
               borderRadius: 8,
               padding: "8px 12px",
               fontSize: 14,
-              marginBottom: 12,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
             }}
           >
             <span>{toast.message}</span>
