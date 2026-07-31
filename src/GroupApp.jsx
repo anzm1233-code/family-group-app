@@ -2081,7 +2081,6 @@ export default function GroupApp() {
                         onClick={(e) => e.stopPropagation()}
                         onChange={() => toggleCarryOverSelection(t.id)}
                         title="다음 날로 넘기기 선택"
-                        style={{ accentColor: active.accent }}
                       />
                     )}
                     <Trash2
