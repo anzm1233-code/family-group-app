@@ -8,12 +8,14 @@
 import { createServer } from "node:http";
 import groupsHandler from "../netlify/functions/groups.mjs";
 import feedbackHandler from "../netlify/functions/feedback.mjs";
+import pushHandler from "../netlify/functions/push.mjs";
 
 const port = process.env.FUNCTIONS_PORT || 9000;
 
 function routeFor(pathname) {
   if (pathname === "/api/feedback" || pathname.startsWith("/api/feedback/")) return feedbackHandler;
   if (pathname === "/api/groups" || pathname.startsWith("/api/groups/")) return groupsHandler;
+  if (pathname.startsWith("/api/push/")) return pushHandler;
   return null;
 }
 

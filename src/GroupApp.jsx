@@ -255,6 +255,40 @@ function markGroupOwned(groupId) {
   }
 }
 
+// Tracks which groups this device already has a push subscription for, so
+// the "알림 받기" prompt doesn't nag again after the user's already turned
+// it on (or explicitly turned it off) here.
+const PUSH_SUBSCRIBED_KEY = "familyGroupApp:pushSubscribedGroups";
+
+function loadPushSubscribedGroups() {
+  try {
+    const raw = localStorage.getItem(PUSH_SUBSCRIBED_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setPushSubscribedGroup(groupId, subscribed) {
+  try {
+    const map = loadPushSubscribedGroups();
+    if (subscribed) map[groupId] = true;
+    else delete map[groupId];
+    localStorage.setItem(PUSH_SUBSCRIBED_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
 function bookmarkFromGroup(group) {
   return {
     id: group.id,
@@ -335,6 +369,8 @@ export default function GroupApp() {
   const [whoAmIMap, setWhoAmIMap] = useState(() => loadWhoAmIMap());
   const [whoAmIPromptDismissed, setWhoAmIPromptDismissed] = useState(() => loadWhoAmIPromptDismissed());
   const [ownedGroups, setOwnedGroups] = useState(() => loadOwnedGroups());
+  const [pushSubscribedGroups, setPushSubscribedGroups] = useState(() => loadPushSubscribedGroups());
+  const [pushBusy, setPushBusy] = useState(false);
   const [groupLoading, setGroupLoading] = useState(!!initialGroupId);
   const [groupLoadError, setGroupLoadError] = useState(null);
   // A deep link always wins. Otherwise: nothing saved yet means this is very
@@ -430,6 +466,9 @@ export default function GroupApp() {
     active && active.members.some((m) => m.id === newTaskAssignee) ? newTaskAssignee : active?.members[0]?.id ?? "";
   const myMemberId = activeId && whoAmIMap[activeId] && memberById[whoAmIMap[activeId]] ? whoAmIMap[activeId] : null;
   const isGroupOwner = !!(activeId && ownedGroups[activeId]);
+  const isPushSubscribed = !!(activeId && pushSubscribedGroups[activeId]);
+  const pushSupported =
+    typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
 
   // "다가오는 일정" preview: tasks and events landing in the next two days only
   // (today's and overdue items belong in 오늘 할일 instead). Anything further
@@ -480,6 +519,84 @@ export default function GroupApp() {
   function claimGroupOwnership() {
     markGroupOwned(activeId);
     setOwnedGroups((prev) => ({ ...prev, [activeId]: true }));
+  }
+
+  async function subscribeToPush() {
+    if (!pushSupported || !activeId) return;
+    setPushBusy(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setToast({ message: "알림이 차단되어 있어요. 브라우저 설정에서 허용해주세요", undo: null });
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      const keyRes = await fetch("/api/push/public-key");
+      const { publicKey } = await keyRes.json();
+      if (!publicKey) {
+        setToast({ message: "알림 기능이 아직 준비되지 않았어요", undo: null });
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        // Subscribing means round-tripping to the browser's push service
+        // (FCM, etc.) — if that's unreachable, some browsers hang instead
+        // of rejecting, so guard with a timeout rather than leaving the
+        // button stuck on "설정 중..." forever.
+        subscription = await Promise.race([
+          registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("subscribe timed out")), 15000)),
+        ]);
+      }
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ groupId: activeId, subscription }),
+      });
+      setPushSubscribedGroups((prev) => ({ ...prev, [activeId]: true }));
+      setPushSubscribedGroup(activeId, true);
+      setToast({ message: "이 그룹의 공지 알림을 받도록 설정했어요", undo: null });
+      setTimeout(() => setToast(null), 2500);
+    } catch (err) {
+      console.error("push subscribe failed", err);
+      setToast({ message: "알림 설정에 실패했어요", undo: null });
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function unsubscribeFromPush() {
+    if (!pushSupported || !activeId) return;
+    setPushBusy(true);
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        await fetch("/api/push/unsubscribe", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+        await subscription.unsubscribe();
+      }
+      setPushSubscribedGroups((prev) => {
+        const next = { ...prev };
+        delete next[activeId];
+        return next;
+      });
+      setPushSubscribedGroup(activeId, false);
+    } catch (err) {
+      console.error("push unsubscribe failed", err);
+    } finally {
+      setPushBusy(false);
+    }
   }
 
   const avatarFileInputRef = useRef(null);
@@ -1882,6 +1999,28 @@ export default function GroupApp() {
           </div>
         </div>
 
+        {pushSupported && !isPushSubscribed && (
+          <div
+            onClick={subscribeToPush}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 16,
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: `0.5px solid ${active.accent}`,
+              background: active.accentBg,
+              color: active.accent,
+              cursor: pushBusy ? "default" : "pointer",
+              opacity: pushBusy ? 0.6 : 1,
+            }}
+          >
+            <Bell size={18} />
+            <span style={{ fontSize: 14 }}>{pushBusy ? "설정 중..." : "전체 공지 알림 받기"}</span>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {active.members.map((m) => (
             <div key={m.id} style={{ textAlign: "center" }}>
@@ -2688,6 +2827,25 @@ export default function GroupApp() {
             >
               <Share2 size={19} /> 그룹 초대/공유하기
             </button>
+            {pushSupported && isPushSubscribed && (
+              <button
+                onClick={unsubscribeFromPush}
+                disabled={pushBusy}
+                style={{
+                  width: "100%",
+                  marginBottom: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  background: "transparent",
+                  border: "0.5px solid var(--border)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                <Bell size={19} /> {pushBusy ? "해제 중..." : "이 그룹 공지 알림 끄기"}
+              </button>
+            )}
             <button
               onClick={openFeedback}
               style={{

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { getDatabase } from "@netlify/database";
+import { ensurePushSchema, sendPushToGroup } from "./lib/push-send.mjs";
 
 let schemaReady = null;
 
@@ -9,7 +10,9 @@ function db() {
 
 async function ensureSchema(pool) {
   if (!schemaReady) {
-    schemaReady = pool.query(`
+    schemaReady = pool
+      .query(
+        `
       CREATE TABLE IF NOT EXISTS groups (
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
@@ -22,7 +25,9 @@ async function ensureSchema(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
-    `);
+    `
+      )
+      .then(() => ensurePushSchema(pool));
   }
   await schemaReady;
 }
@@ -228,6 +233,13 @@ export default async (req) => {
       const body = await req.json().catch(() => ({}));
       const group = await applyGroupOp(pool, id, body);
       if (!group) return json({ error: "not_found" }, 404);
+      if (body.op === "addTask" && body.task?.broadcast) {
+        await sendPushToGroup(pool, id, {
+          title: group.name,
+          body: body.task.title || "새 공지가 올라왔어요",
+          url: `/g/${id}`,
+        }).catch((err) => console.error("push send failed", err));
+      }
       return json(group);
     }
 
