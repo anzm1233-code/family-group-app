@@ -1565,8 +1565,8 @@ export default function GroupApp() {
     });
   }
 
-  const [viewYear, setViewYear] = useState(2026);
-  const [viewMonth, setViewMonth] = useState(7); // 1-indexed
+  const [viewYear, setViewYear] = useState(() => now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => now.getMonth() + 1); // 1-indexed
 
   function getWeeks(year, month) {
     const firstDay = new Date(year, month - 1, 1).getDay(); // 0=Sun
