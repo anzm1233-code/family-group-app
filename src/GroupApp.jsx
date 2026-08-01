@@ -2017,7 +2017,7 @@ export default function GroupApp() {
             }}
           >
             <Bell size={18} />
-            <span style={{ fontSize: 14 }}>{pushBusy ? "설정 중..." : "전체 공지 알림 받기"}</span>
+            <span style={{ fontSize: 14 }}>{pushBusy ? "설정 중..." : "새 일정 알림 받기"}</span>
           </div>
         )}
 

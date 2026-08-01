@@ -233,10 +233,10 @@ export default async (req) => {
       const body = await req.json().catch(() => ({}));
       const group = await applyGroupOp(pool, id, body);
       if (!group) return json({ error: "not_found" }, 404);
-      if (body.op === "addTask" && body.task?.broadcast) {
+      if (body.op === "addTask" && !body.task?.private) {
         await sendPushToGroup(pool, id, {
           title: group.name,
-          body: body.task.title || "새 공지가 올라왔어요",
+          body: body.task?.title || "새 일정이 올라왔어요",
           url: `/g/${id}`,
         }).catch((err) => console.error("push send failed", err));
       }
