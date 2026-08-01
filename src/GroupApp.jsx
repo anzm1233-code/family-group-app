@@ -554,11 +554,15 @@ export default function GroupApp() {
           new Promise((_, reject) => setTimeout(() => reject(new Error("subscribe timed out")), 15000)),
         ]);
       }
-      await fetch("/api/push/subscribe", {
+      const subscribeRes = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ groupId: activeId, subscription }),
       });
+      if (!subscribeRes.ok) {
+        const errBody = await subscribeRes.text().catch(() => "");
+        throw new Error(`subscribe save failed: ${subscribeRes.status} ${errBody}`);
+      }
       setPushSubscribedGroups((prev) => ({ ...prev, [activeId]: true }));
       setPushSubscribedGroup(activeId, true);
       setToast({ message: "이 그룹의 공지 알림을 받도록 설정했어요", undo: null });
