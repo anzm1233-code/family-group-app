@@ -2004,7 +2004,7 @@ export default function GroupApp() {
             onClick={subscribeToPush}
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-start",
               gap: 8,
               marginBottom: 16,
               padding: "8px 10px",
@@ -2016,8 +2016,10 @@ export default function GroupApp() {
               opacity: pushBusy ? 0.6 : 1,
             }}
           >
-            <Bell size={18} />
-            <span style={{ fontSize: 14 }}>{pushBusy ? "설정 중..." : "새 일정 알림 받기"}</span>
+            <Bell size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+            <span style={{ fontSize: 14 }}>
+              {pushBusy ? "설정 중..." : "새 일정 알림을 받으려면 알림받기를 클릭해 주세요"}
+            </span>
           </div>
         )}
 
