@@ -105,8 +105,8 @@ const QUICK_START = {
   family: {
     label: "가족으로 시작",
     defaultName: "우리 가족",
-    accent: "#0F6E56",
-    accentBg: "#E1F5EE",
+    accent: "#4F7CFF",
+    accentBg: "#EAF0FF",
     members: [
       { id: "dad", name: "아빠", tier: 0 },
       { id: "mom", name: "엄마", tier: 0 },
@@ -116,8 +116,8 @@ const QUICK_START = {
   company: {
     label: "회사/팀으로 시작",
     defaultName: "기획 1팀",
-    accent: "#854F0B",
-    accentBg: "#FAEEDA",
+    accent: "#FFB020",
+    accentBg: "#FFF4E0",
     members: [
       { id: "ceo", name: "김사장", tier: 3 },
       { id: "dir", name: "박부장", tier: 2 },
@@ -128,8 +128,8 @@ const QUICK_START = {
   school: {
     label: "학급으로 시작",
     defaultName: "3학년 2반",
-    accent: "#534AB7",
-    accentBg: "#EEEDFE",
+    accent: "#8B5CF6",
+    accentBg: "#F2EDFE",
     members: [
       { id: "teacher", name: "담임", tier: 1 },
       { id: "s1", name: "학생1", tier: 0 },
@@ -138,8 +138,8 @@ const QUICK_START = {
   custom: {
     label: "직접 만들기",
     defaultName: "",
-    accent: "#993556",
-    accentBg: "#FBEAF0",
+    accent: "#22C55E",
+    accentBg: "#E8F9EF",
     members: [{ id: "me", name: "나", tier: 0 }],
   },
 };
