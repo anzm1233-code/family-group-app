@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { getDatabase } from "@netlify/database";
 import { ensurePushSchema, sendPushToGroup } from "./lib/push-send.mjs";
+import { ensureActivityLogSchema, logActivity, listActivity } from "./lib/activity-log.mjs";
 
 let schemaReady = null;
 
@@ -27,7 +28,8 @@ async function ensureSchema(pool) {
       )
     `
       )
-      .then(() => ensurePushSchema(pool));
+      .then(() => ensurePushSchema(pool))
+      .then(() => ensureActivityLogSchema(pool));
   }
   await schemaReady;
 }
@@ -223,6 +225,11 @@ export default async (req) => {
       return json({ groups });
     }
 
+    if (req.method === "GET" && id && segments[3] === "activity") {
+      const items = await listActivity(pool, id);
+      return json({ items });
+    }
+
     if (req.method === "GET" && id) {
       const group = await getGroup(pool, id);
       if (!group) return json({ error: "not_found" }, 404);
@@ -234,6 +241,11 @@ export default async (req) => {
       const group = await applyGroupOp(pool, id, body);
       if (!group) return json({ error: "not_found" }, 404);
       if (body.op === "addTask" && !body.task?.private) {
+        const actorName = typeof body.actorName === "string" && body.actorName.trim() ? body.actorName.trim() : null;
+        const what = body.task?.note ? "메모를" : body.task?.broadcast ? "공지를" : "할일을";
+        const title = body.task?.title || "";
+        const message = `${actorName ? actorName + "님이 " : ""}${what} 추가했어요${title ? `: ${title}` : ""}`;
+        await logActivity(pool, id, message).catch((err) => console.error("activity log failed", err));
         await sendPushToGroup(pool, id, {
           title: group.name,
           body: body.task?.title || "새 일정이 올라왔어요",
@@ -258,5 +270,5 @@ export default async (req) => {
 };
 
 export const config = {
-  path: ["/api/groups", "/api/groups/:id"],
+  path: ["/api/groups", "/api/groups/:id", "/api/groups/:id/activity"],
 };

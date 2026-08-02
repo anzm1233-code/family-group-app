@@ -66,6 +66,18 @@ function getLunarLabel(year, month, day) {
   return `음력 ${lunar.month}월 ${lunar.day}일${lunar.intercalation ? " (윤달)" : ""}`;
 }
 
+function formatRelativeTime(isoString) {
+  const then = new Date(isoString).getTime();
+  const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (diffSec < 60) return "방금 전";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  const diffDay = Math.floor(diffHour / 24);
+  return `${diffDay}일 전`;
+}
+
 // Only actual user-set event notification choices survive a reload — everything
 // else (checkboxes, drafts, etc.) intentionally resets to its default each time.
 const NOTIFY_STORAGE_KEY = "familyGroupApp:eventNotifications";
@@ -467,6 +479,9 @@ export default function GroupApp() {
 
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [inviteScreenOpen, setInviteScreenOpen] = useState(false);
+  const [activityScreenOpen, setActivityScreenOpen] = useState(false);
+  const [activityItems, setActivityItems] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [inviteQrDataUrl, setInviteQrDataUrl] = useState(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
@@ -972,6 +987,20 @@ export default function GroupApp() {
       }
     }
     copyGroupLink(url);
+  }
+
+  function openActivityScreen() {
+    setActivityScreenOpen(true);
+    setActivityLoading(true);
+    fetch(`/api/groups/${activeId}/activity`)
+      .then((res) => (res.ok ? res.json() : { items: [] }))
+      .then((data) => setActivityItems(data.items || []))
+      .catch(() => setActivityItems([]))
+      .finally(() => setActivityLoading(false));
+  }
+
+  function closeActivityScreen() {
+    setActivityScreenOpen(false);
   }
 
   function openGroupSettings() {
@@ -1617,7 +1646,8 @@ export default function GroupApp() {
       private: newTaskPrivate,
       photos: newTaskPhotos,
     };
-    runGroupOp({ op: "addTask", task }, (g) => ({ ...g, tasks: [...g.tasks, task] }));
+    const actorName = myMemberId ? memberById[myMemberId]?.name : null;
+    runGroupOp({ op: "addTask", task, actorName }, (g) => ({ ...g, tasks: [...g.tasks, task] }));
     setNewTaskTitle("");
     setNewTaskTime("");
     setNewTaskBroadcast(false);
@@ -1644,7 +1674,8 @@ export default function GroupApp() {
       private: false,
       note: true,
     };
-    runGroupOp({ op: "addTask", task: memo }, (g) => ({ ...g, tasks: [...g.tasks, memo] }));
+    const actorName = myMemberId ? memberById[myMemberId]?.name : null;
+    runGroupOp({ op: "addTask", task: memo, actorName }, (g) => ({ ...g, tasks: [...g.tasks, memo] }));
     setNewMemoTitle("");
     return true;
   }
@@ -1983,7 +2014,15 @@ export default function GroupApp() {
             </p>
             <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "2px 0 0" }}>오늘도 좋은 하루 보내세요!</p>
           </div>
-          <Bell size={22} color="var(--text-secondary)" />
+          <Bell
+            size={22}
+            color="var(--text-secondary)"
+            style={{ cursor: "pointer" }}
+            onClick={() => {
+              setToast({ message: "그룹을 선택하면 그 그룹의 알림을 볼 수 있어요", undo: null });
+              setTimeout(() => setToast(null), 2000);
+            }}
+          />
         </div>
 
         <div
@@ -2271,6 +2310,13 @@ export default function GroupApp() {
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <Bell
+              size={23}
+              color="var(--text-secondary)"
+              style={{ cursor: "pointer" }}
+              onClick={openActivityScreen}
+              title="알림"
+            />
             <Share2
               size={23}
               color="var(--text-secondary)"
@@ -3520,6 +3566,86 @@ export default function GroupApp() {
             <button onClick={shareInviteLink} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Share2 size={19} /> 초대 링크 공유
             </button>
+          </div>
+        </div>
+      )}
+
+      {activityScreenOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={closeActivityScreen}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 340,
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <p style={{ fontWeight: 700, fontSize: 17, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <Bell size={19} /> 알림
+              </p>
+              <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeActivityScreen} />
+            </div>
+
+            {activityLoading && <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>불러오는 중...</p>}
+
+            {!activityLoading && activityItems.length === 0 && (
+              <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>아직 활동 내역이 없어요.</p>
+            )}
+
+            {!activityLoading && activityItems.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {activityItems.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      padding: "10px 4px",
+                      borderBottom: "0.5px solid var(--border)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: "50%",
+                        background: active.accentBg,
+                        color: active.accent,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Bell size={15} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 14, margin: 0 }}>{item.message}</p>
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "2px 0 0" }}>
+                        {formatRelativeTime(item.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
