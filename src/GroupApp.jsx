@@ -295,6 +295,25 @@ function cacheGroup(group) {
   }
 }
 
+const THEME_KEY = "familyGroupApp:theme";
+
+function loadThemeOverride() {
+  try {
+    const raw = localStorage.getItem(THEME_KEY);
+    return raw === "light" || raw === "dark" ? raw : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function saveThemeOverride(value) {
+  try {
+    localStorage.setItem(THEME_KEY, value);
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
 // Tracks which groups this device already has a push subscription for, so
 // the "알림 받기" prompt doesn't nag again after the user's already turned
 // it on (or explicitly turned it off) here.
@@ -483,6 +502,8 @@ export default function GroupApp() {
   const [activityItems, setActivityItems] = useState([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [inviteQrDataUrl, setInviteQrDataUrl] = useState(null);
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [themeOverride, setThemeOverride] = useState(() => loadThemeOverride());
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [draftMembers, setDraftMembers] = useState([]);
@@ -748,6 +769,18 @@ export default function GroupApp() {
     } finally {
       if (!silent) setGroupLoading(false);
     }
+  }
+
+  // "system" clears the override attribute entirely so the OS-level
+  // prefers-color-scheme media query in index.css takes back over.
+  useEffect(() => {
+    if (themeOverride === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = themeOverride;
+  }, [themeOverride]);
+
+  function chooseTheme(value) {
+    setThemeOverride(value);
+    saveThemeOverride(value);
   }
 
   // Deep link support: a page load on /g/:id fetches that group directly,
@@ -1193,13 +1226,7 @@ export default function GroupApp() {
             <span style={{ fontSize: 11 }}>그룹</span>
           </div>
           <div
-            onClick={() => {
-              if (view === "app") openGroupSettings();
-              else {
-                setToast({ message: "앱 설정은 준비 중이에요", undo: null });
-                setTimeout(() => setToast(null), 2000);
-              }
-            }}
+            onClick={() => (view === "app" ? openGroupSettings() : setAppSettingsOpen(true))}
             style={tabItemStyle(activeKey === "settings")}
           >
             <Settings size={22} />
@@ -2135,6 +2162,122 @@ export default function GroupApp() {
       </div>
       {renderBottomTabBar("home")}
       {renderFeedbackModal()}
+      {appSettingsOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={() => setAppSettingsOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 340,
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ fontWeight: 700, fontSize: 17, margin: 0 }}>설정</p>
+              <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setAppSettingsOpen(false)} />
+            </div>
+
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 8px" }}>내 프로필 (그룹별)</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 18 }}>
+              {bookmarks.map((b) => {
+                const memberId = whoAmIMap[b.id];
+                const cachedGroup = loadGroupCache()[b.id];
+                const name = memberId ? cachedGroup?.members?.find((m) => m.id === memberId)?.name : null;
+                return (
+                  <div key={b.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 14, padding: "6px 0" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>{b.name}</span>
+                    <span style={{ color: name ? "var(--text-primary)" : "var(--text-muted)" }}>
+                      {name || "선택 안 함"}
+                    </span>
+                  </div>
+                );
+              })}
+              {bookmarks.length === 0 && (
+                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>아직 그룹이 없어요.</p>
+              )}
+            </div>
+
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 8px" }}>테마 설정</p>
+            <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+              {[
+                { key: "light", label: "라이트" },
+                { key: "dark", label: "다크" },
+                { key: "system", label: "시스템 기본" },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => chooseTheme(opt.key)}
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    padding: "8px 4px",
+                    background: themeOverride === opt.key ? "var(--accent-primary)" : "transparent",
+                    color: themeOverride === opt.key ? "var(--on-accent)" : "var(--text-secondary)",
+                    border: themeOverride === opt.key ? "none" : "0.5px solid var(--border)",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 8px" }}>알림 설정</p>
+            <div style={{ marginBottom: 18 }}>
+              {bookmarks.filter((b) => pushSubscribedGroups[b.id]).length === 0 ? (
+                <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>켜져 있는 그룹 알림이 없어요.</p>
+              ) : (
+                <>
+                  {bookmarks
+                    .filter((b) => pushSubscribedGroups[b.id])
+                    .map((b) => (
+                      <p key={b.id} style={{ fontSize: 14, margin: "0 0 4px", display: "flex", alignItems: "center", gap: 6 }}>
+                        <Bell size={14} color="var(--accent-primary)" /> {b.name}
+                      </p>
+                    ))}
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "6px 0 0" }}>
+                    끄고 싶으면 그 그룹의 설정에서 끌 수 있어요.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 8px" }}>앱 정보</p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 14, marginBottom: 12 }}>
+              <span style={{ color: "var(--text-secondary)" }}>버전</span>
+              <span style={{ color: "var(--text-muted)" }}>v1.0.0</span>
+            </div>
+            <button
+              onClick={() => {
+                setAppSettingsOpen(false);
+                openFeedback();
+              }}
+              style={{
+                width: "100%",
+                background: "transparent",
+                border: "0.5px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              피드백 남기기
+            </button>
+          </div>
+        </div>
+      )}
       </>
     );
   }

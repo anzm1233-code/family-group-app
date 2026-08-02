@@ -34,6 +34,33 @@
   }
 }
 
+/* In-app theme override (앱 설정 > 테마 설정) — wins over the OS-level
+   prefers-color-scheme media query above regardless of which way the OS
+   is set, since a [data-theme] attribute always beats a media query. */
+:root[data-theme="dark"] {
+  --surface-1: #0f1013;
+  --surface-2: #1b1c21;
+  --border: #303138;
+  --border-strong: #45464e;
+  --text-primary: #f3f4f6;
+  --text-secondary: #b7b6bd;
+  --text-muted: #7c7b83;
+  --text-danger: #e57373;
+  --accent-primary: #7095ff;
+}
+
+:root[data-theme="light"] {
+  --surface-1: #f4f4f5;
+  --surface-2: #ffffff;
+  --border: #e5e4e7;
+  --border-strong: #c9c8cd;
+  --text-primary: #08060d;
+  --text-secondary: #4b4a52;
+  --text-muted: #8b8a92;
+  --text-danger: #c0392b;
+  --accent-primary: #4f7cff;
+}
+
 * {
   box-sizing: border-box;
 }
