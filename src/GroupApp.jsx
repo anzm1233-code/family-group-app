@@ -19,6 +19,7 @@ import {
   Share2,
   Home,
   StickyNote,
+  PartyPopper,
 } from "lucide-react";
 import KoreanLunarCalendar from "korean-lunar-calendar";
 
@@ -2578,7 +2579,22 @@ export default function GroupApp() {
                 </div>
               ))}
               {active.tasks.filter((t) => !t.note && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t)))).length === 0 && (
-                <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>오늘은 남은 할일이 없어요.</p>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "20px 0",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  <PartyPopper size={32} color={active.accent} />
+                  <p style={{ fontSize: 15, fontWeight: 600, margin: 0, color: "var(--text-secondary)" }}>
+                    오늘은 남은 할일이 없어요!
+                  </p>
+                  <p style={{ fontSize: 13, margin: 0 }}>모두 완료했어요, 정말 대단해요 🎉</p>
+                </div>
               )}
             </div>
 
