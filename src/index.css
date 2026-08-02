@@ -90,3 +90,19 @@ button:focus-visible {
 p {
   margin: 0;
 }
+
+@keyframes logo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.75;
+  }
+}
+
+.loading-logo {
+  animation: logo-pulse 1.1s ease-in-out infinite;
+}

@@ -256,6 +256,31 @@ function markGroupOwned(groupId) {
   }
 }
 
+// Last-known-good copy of each visited group, so opening a link this device
+// has seen before can render instantly from cache while the real fetch
+// refreshes it silently in the background, instead of blocking on a loading
+// screen every single time.
+const GROUP_CACHE_KEY = "familyGroupApp:groupCache";
+
+function loadGroupCache() {
+  try {
+    const raw = localStorage.getItem(GROUP_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function cacheGroup(group) {
+  try {
+    const cache = loadGroupCache();
+    cache[group.id] = group;
+    localStorage.setItem(GROUP_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
 // Tracks which groups this device already has a push subscription for, so
 // the "알림 받기" prompt doesn't nag again after the user's already turned
 // it on (or explicitly turned it off) here.
@@ -365,14 +390,20 @@ export default function GroupApp() {
   const now = new Date();
   const initialBookmarks = loadBookmarks();
 
-  const [groups, setGroups] = useState([]);
+  const [groups, setGroups] = useState(() => {
+    if (!initialGroupId) return [];
+    const cached = loadGroupCache()[initialGroupId];
+    return cached ? [applyNotifyPrefs([cached])[0]] : [];
+  });
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [whoAmIMap, setWhoAmIMap] = useState(() => loadWhoAmIMap());
   const [whoAmIPromptDismissed, setWhoAmIPromptDismissed] = useState(() => loadWhoAmIPromptDismissed());
   const [ownedGroups, setOwnedGroups] = useState(() => loadOwnedGroups());
   const [pushSubscribedGroups, setPushSubscribedGroups] = useState(() => loadPushSubscribedGroups());
   const [pushBusy, setPushBusy] = useState(false);
-  const [groupLoading, setGroupLoading] = useState(!!initialGroupId);
+  // Skip the loading screen when a cached copy already lets the group render
+  // immediately — loadGroup() still refreshes it, just silently.
+  const [groupLoading, setGroupLoading] = useState(() => !!initialGroupId && !loadGroupCache()[initialGroupId]);
   const [groupLoadError, setGroupLoadError] = useState(null);
   // A deep link always wins. Otherwise: nothing saved yet means this is very
   // likely a first-time visitor, so skip straight to "새 그룹 만들기" instead
@@ -627,6 +658,7 @@ export default function GroupApp() {
     sendGroupOp(groupId, op)
       .then((fresh) => {
         if (!fresh) return;
+        cacheGroup(fresh);
         const withNotify = applyNotifyPrefs([fresh])[0];
         setGroups((prev) => prev.map((g) => (g.id === fresh.id ? withNotify : g)));
       })
@@ -635,8 +667,8 @@ export default function GroupApp() {
       });
   }
 
-  async function loadGroup(id) {
-    setGroupLoading(true);
+  async function loadGroup(id, { silent = false } = {}) {
+    if (!silent) setGroupLoading(true);
     setGroupLoadError(null);
     try {
       const res = await fetch(`/api/groups/${id}`);
@@ -646,6 +678,7 @@ export default function GroupApp() {
       }
       if (!res.ok) throw new Error("fetch_failed");
       const group = await res.json();
+      cacheGroup(group);
       const withNotify = applyNotifyPrefs([group])[0];
       setGroups((prev) => (prev.some((g) => g.id === group.id) ? prev.map((g) => (g.id === group.id ? withNotify : g)) : [...prev, withNotify]));
       setBookmarks((prev) => {
@@ -654,16 +687,16 @@ export default function GroupApp() {
         return next;
       });
     } catch {
-      setGroupLoadError("network");
+      if (!silent) setGroupLoadError("network");
     } finally {
-      setGroupLoading(false);
+      if (!silent) setGroupLoading(false);
     }
   }
 
   // Deep link support: a page load on /g/:id fetches that group directly,
   // with no login — the link itself is the access control.
   useEffect(() => {
-    if (initialGroupId) loadGroup(initialGroupId);
+    if (initialGroupId) loadGroup(initialGroupId, { silent: groups.some((g) => g.id === initialGroupId) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -703,6 +736,7 @@ export default function GroupApp() {
         .then((res) => (res.ok ? res.json() : null))
         .then((group) => {
           if (!group || pendingSaveCountRef.current > 0) return;
+          cacheGroup(group);
           const withNotify = applyNotifyPrefs([group])[0];
           setGroups((prev) => prev.map((g) => (g.id === group.id ? withNotify : g)));
         })
@@ -1966,7 +2000,12 @@ export default function GroupApp() {
             textAlign: "center",
           }}
         >
-          {groupLoading && <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: 0 }}>불러오는 중...</p>}
+          {groupLoading && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "14px 0" }}>
+              <img src="/favicon.svg" alt="" className="loading-logo" style={{ width: 48, height: 46 }} />
+              <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: 0 }}>불러오는 중...</p>
+            </div>
+          )}
           {!groupLoading && groupLoadError === "not_found" && (
             <>
               <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: "0 0 14px" }}>
