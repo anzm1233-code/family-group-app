@@ -18,6 +18,7 @@ import {
   Trash2,
   Share2,
   Home,
+  StickyNote,
 } from "lucide-react";
 import KoreanLunarCalendar from "korean-lunar-calendar";
 
@@ -396,6 +397,8 @@ export default function GroupApp() {
 
   const [showAddTaskForm, setShowAddTaskForm] = useState(false);
   const [showCalendarAddTaskForm, setShowCalendarAddTaskForm] = useState(false);
+  const [showMemoForm, setShowMemoForm] = useState(false);
+  const [newMemoTitle, setNewMemoTitle] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskBroadcast, setNewTaskBroadcast] = useState(false);
@@ -477,7 +480,7 @@ export default function GroupApp() {
   const upcomingItems = active
     ? [
         ...active.tasks
-          .filter((t) => upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
+          .filter((t) => !t.note && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
           .map((t) => ({ kind: "task", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
         ...active.events
           .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
@@ -1431,6 +1434,26 @@ export default function GroupApp() {
     return true;
   }
 
+  // Memos share the tasks list/table (no checkbox, no assignee) — a free-text
+  // note pinned to a day, for things like "영희 8/10~8/15 휴가" that aren't a
+  // to-do anyone completes.
+  function addMemo(dueMonth, dueDay) {
+    if (!newMemoTitle.trim()) return false;
+    const memo = {
+      id: generateLocalId(),
+      title: newMemoTitle,
+      due: `${dueMonth}/${dueDay}`,
+      done: false,
+      assignee: null,
+      broadcast: false,
+      private: false,
+      note: true,
+    };
+    runGroupOp({ op: "addTask", task: memo }, (g) => ({ ...g, tasks: [...g.tasks, memo] }));
+    setNewMemoTitle("");
+    return true;
+  }
+
   // Shared collapsible add-task/notice form — used on the home tab (defaults to
   // "today") and on the calendar tab (targets whichever day is selected there).
   function renderAddTaskForm(open, onToggle, onClose, dueMonth, dueDay) {
@@ -1732,7 +1755,8 @@ export default function GroupApp() {
       .filter(Boolean),
   ];
   const dayEvents = eventsOnDay(selectedDay);
-  const dayTasks = tasksOnDay(selectedDay);
+  const dayTasks = tasksOnDay(selectedDay).filter((t) => !t.note);
+  const dayMemos = tasksOnDay(selectedDay).filter((t) => t.note);
   const selectedLunarLabel = getLunarLabel(viewYear, viewMonth, selectedDay);
 
   // ---------- GROUP LIST ----------
@@ -2234,7 +2258,7 @@ export default function GroupApp() {
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {active.tasks
-                .filter((t) => isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t)))
+                .filter((t) => !t.note && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))))
                 .map((t) => (
                 <div
                   key={t.id}
@@ -2318,7 +2342,7 @@ export default function GroupApp() {
                   </span>
                 </div>
               ))}
-              {active.tasks.filter((t) => isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))).length === 0 && (
+              {active.tasks.filter((t) => !t.note && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t)))).length === 0 && (
                 <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>오늘은 남은 할일이 없어요.</p>
               )}
             </div>
@@ -2419,6 +2443,7 @@ export default function GroupApp() {
                 if (!d) return <div key={i} style={{ height: 60 }} />;
                 const assignees = dayAssignees(d);
                 const broadcastCount = tasksOnDay(d).filter((t) => t.broadcast).length;
+                const memoCount = tasksOnDay(d).filter((t) => t.note).length;
                 const isSelected = d === selectedDay;
                 return (
                   <div
@@ -2438,12 +2463,18 @@ export default function GroupApp() {
                     }}
                   >
                     <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 700 : 500 }}>{d}</div>
-                    {(assignees.length > 0 || broadcastCount > 0) && (
+                    {(assignees.length > 0 || broadcastCount > 0 || memoCount > 0) && (
                       <div style={{ display: "flex", gap: 1, marginTop: 2, alignItems: "center" }}>
                         {broadcastCount > 0 && (
                           <span style={{ display: "flex", alignItems: "center", gap: 1, color: active.accent }}>
                             <Megaphone size={15} />
                             {broadcastCount > 1 && <span style={{ fontSize: 11 }}>{broadcastCount}</span>}
+                          </span>
+                        )}
+                        {memoCount > 0 && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 1, color: "var(--text-muted)" }}>
+                            <StickyNote size={14} />
+                            {memoCount > 1 && <span style={{ fontSize: 11 }}>{memoCount}</span>}
                           </span>
                         )}
                         {assignees.slice(0, 2).map((a, idx) => (
@@ -2461,7 +2492,7 @@ export default function GroupApp() {
                 <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{viewMonth}월 {selectedDay}일</p>
                 {selectedLunarLabel && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{selectedLunarLabel}</span>}
               </div>
-              {dayEvents.length === 0 && dayTasks.length === 0 && (
+              {dayEvents.length === 0 && dayTasks.length === 0 && dayMemos.length === 0 && (
                 <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>일정이 없어요.</p>
               )}
               {dayEvents.map((e) => (
@@ -2505,6 +2536,25 @@ export default function GroupApp() {
                   {t.due.includes(" ") && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
                 </div>
               ))}
+              {dayMemos.map((m) => (
+                <div
+                  key={"m" + m.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 14,
+                    marginBottom: 4,
+                    padding: "6px 8px",
+                    borderRadius: 6,
+                    background: "var(--surface-1)",
+                  }}
+                >
+                  <StickyNote size={16} color="var(--text-muted)" />
+                  <span style={{ flex: 1, color: "var(--text-secondary)" }}>{m.title}</span>
+                  <Trash2 size={16} color="var(--text-muted)" style={{ cursor: "pointer" }} onClick={() => deleteTask(m)} />
+                </div>
+              ))}
               <div style={{ marginTop: 10 }}>
                 {renderAddTaskForm(
                   showCalendarAddTaskForm,
@@ -2512,6 +2562,45 @@ export default function GroupApp() {
                   () => setShowCalendarAddTaskForm(false),
                   viewMonth,
                   selectedDay
+                )}
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <button
+                  onClick={() => setShowMemoForm((prev) => !prev)}
+                  style={{
+                    width: "100%",
+                    marginBottom: showMemoForm ? 10 : 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    background: "transparent",
+                    border: "0.5px solid var(--border)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {showMemoForm ? "접기" : (
+                    <>
+                      <StickyNote size={17} /> 메모 추가
+                    </>
+                  )}
+                </button>
+                {showMemoForm && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      value={newMemoTitle}
+                      onChange={(e) => setNewMemoTitle(e.target.value)}
+                      placeholder="예: 영희 8/10~8/15 휴가"
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (addMemo(viewMonth, selectedDay)) setShowMemoForm(false);
+                      }}
+                    >
+                      추가
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
