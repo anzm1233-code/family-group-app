@@ -399,6 +399,8 @@ export default function GroupApp() {
   const [showCalendarAddTaskForm, setShowCalendarAddTaskForm] = useState(false);
   const [showMemoForm, setShowMemoForm] = useState(false);
   const [newMemoTitle, setNewMemoTitle] = useState("");
+  const [editingMemoId, setEditingMemoId] = useState(null);
+  const [editingMemoText, setEditingMemoText] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskBroadcast, setNewTaskBroadcast] = useState(false);
@@ -1452,6 +1454,23 @@ export default function GroupApp() {
     runGroupOp({ op: "addTask", task: memo }, (g) => ({ ...g, tasks: [...g.tasks, memo] }));
     setNewMemoTitle("");
     return true;
+  }
+
+  function startEditingMemo(memo) {
+    setEditingMemoId(memo.id);
+    setEditingMemoText(memo.title);
+  }
+
+  function saveMemoEdit() {
+    const taskId = editingMemoId;
+    const title = editingMemoText.trim();
+    setEditingMemoId(null);
+    if (!title) return;
+    const patch = { title };
+    runGroupOp(
+      { op: "editTask", taskId, patch },
+      (g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) })
+    );
   }
 
   // Shared collapsible add-task/notice form — used on the home tab (defaults to
@@ -2551,7 +2570,26 @@ export default function GroupApp() {
                   }}
                 >
                   <StickyNote size={16} color="var(--text-muted)" />
-                  <span style={{ flex: 1, color: "var(--text-secondary)" }}>{m.title}</span>
+                  {editingMemoId === m.id ? (
+                    <input
+                      autoFocus
+                      value={editingMemoText}
+                      onChange={(e) => setEditingMemoText(e.target.value)}
+                      onBlur={saveMemoEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                        if (e.key === "Escape") setEditingMemoId(null);
+                      }}
+                      style={{ flex: 1, minWidth: 0, fontSize: 14, padding: "4px 6px" }}
+                    />
+                  ) : (
+                    <span
+                      onClick={() => startEditingMemo(m)}
+                      style={{ flex: 1, color: "var(--text-secondary)", cursor: "pointer" }}
+                    >
+                      {m.title}
+                    </span>
+                  )}
                   <Trash2 size={16} color="var(--text-muted)" style={{ cursor: "pointer" }} onClick={() => deleteTask(m)} />
                 </div>
               ))}
