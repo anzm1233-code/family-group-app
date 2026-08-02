@@ -22,6 +22,7 @@ import {
   PartyPopper,
 } from "lucide-react";
 import KoreanLunarCalendar from "korean-lunar-calendar";
+import QRCode from "qrcode";
 
 // Group deletion asks for this fixed phrase instead of the group's actual
 // name — comparing against a literal we control avoids invisible-character
@@ -465,6 +466,8 @@ export default function GroupApp() {
   const [draftDueTime, setDraftDueTime] = useState(""); // HH:MM, for <input type="time">
 
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [inviteScreenOpen, setInviteScreenOpen] = useState(false);
+  const [inviteQrDataUrl, setInviteQrDataUrl] = useState(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [draftMembers, setDraftMembers] = useState([]);
@@ -940,13 +943,34 @@ export default function GroupApp() {
   }
 
   // Same link for every group type — anyone who opens it sees and edits the
-  // same shared data, so "초대" is just "share this URL". Always copies
-  // straight to the clipboard rather than opening the OS share sheet — once
-  // handed to a third-party app (KakaoTalk, etc.) that app decides whether to
-  // pre-fill anything, and that's inconsistent enough to be more confusing
-  // than a plain "링크가 복사됐어요" the user can paste anywhere themselves.
-  async function shareGroupLink() {
+  // same shared data, so "초대" is just "share this URL". Opens the dedicated
+  // invite screen (link + QR code) rather than copying immediately, since a
+  // QR code has to be rendered there for someone to scan in person.
+  function shareGroupLink() {
+    setGroupSettingsOpen(false);
+    setInviteScreenOpen(true);
     const url = `${window.location.origin}/g/${active.id}`;
+    QRCode.toDataURL(url, { width: 220, margin: 1, color: { dark: "#08060d", light: "#ffffff" } })
+      .then(setInviteQrDataUrl)
+      .catch(() => setInviteQrDataUrl(null));
+  }
+
+  function closeInviteScreen() {
+    setInviteScreenOpen(false);
+    setInviteQrDataUrl(null);
+  }
+
+  async function shareInviteLink() {
+    const url = `${window.location.origin}/g/${active.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ url, title: active?.name });
+        return;
+      } catch {
+        // user cancelled the native share sheet, or it's unsupported for
+        // this content — copying the link is still a complete fallback.
+      }
+    }
     copyGroupLink(url);
   }
 
@@ -3402,6 +3426,100 @@ export default function GroupApp() {
               )}
             </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {inviteScreenOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={closeInviteScreen}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 340,
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+              <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeInviteScreen} />
+            </div>
+
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 18,
+                background: active.accentBg,
+                color: active.accent,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 12px",
+              }}
+            >
+              <Users size={32} />
+            </div>
+            <p style={{ fontWeight: 700, fontSize: 18, margin: "0 0 4px" }}>{active.name}</p>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 18px" }}>
+              다른 사람을 그룹에 초대해보세요!
+            </p>
+
+            {inviteQrDataUrl && (
+              <img
+                src={inviteQrDataUrl}
+                alt="초대 QR 코드"
+                style={{ width: 180, height: 180, margin: "0 auto 16px", borderRadius: 12, border: "0.5px solid var(--border)" }}
+              />
+            )}
+
+            <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 16px" }}>
+              링크를 복사해서 보내거나, QR코드를 함께 찍어서 스캔하도록 하면 초대할 수 있어요.
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                border: "0.5px solid var(--border)",
+                borderRadius: 10,
+                padding: "8px 10px",
+                marginBottom: 12,
+                fontSize: 13,
+                color: "var(--text-secondary)",
+                overflow: "hidden",
+              }}
+            >
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
+                {`${window.location.origin}/g/${active.id}`}
+              </span>
+              <span
+                onClick={() => copyGroupLink(`${window.location.origin}/g/${active.id}`)}
+                style={{ color: "var(--accent-primary)", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
+              >
+                복사
+              </span>
+            </div>
+
+            <button onClick={shareInviteLink} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Share2 size={19} /> 초대 링크 공유
+            </button>
           </div>
         </div>
       )}
