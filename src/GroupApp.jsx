@@ -3409,7 +3409,12 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>{openTask.broadcast ? "전체 공지" : "할일 상세"}</p>
+              <p style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 17, margin: 0 }}>
+                <span
+                  style={{ width: 10, height: 10, borderRadius: "50%", background: active.accent, flexShrink: 0 }}
+                />
+                {openTask.broadcast ? "전체 공지" : "할일 상세"}
+              </p>
               <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeTaskDetail} />
             </div>
 
@@ -3608,7 +3613,12 @@ export default function GroupApp() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>일정 상세</p>
+              <p style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 17, margin: 0 }}>
+                <span
+                  style={{ width: 10, height: 10, borderRadius: "50%", background: active.accent, flexShrink: 0 }}
+                />
+                일정 상세
+              </p>
               <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeEventDetail} />
             </div>
 
