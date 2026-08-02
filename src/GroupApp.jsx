@@ -521,6 +521,44 @@ export default function GroupApp() {
       ].sort((a, b) => a.month - b.month || a.day - b.day)
     : [];
 
+  // "내 그룹" dashboard: today's undone tasks across every bookmarked group,
+  // sourced from each group's cached copy (see GROUP_CACHE_KEY) rather than a
+  // fresh fetch per group — a group that's never been opened on this device
+  // just won't have anything to contribute yet, same limitation as bookmarks.
+  const todayScheduleItems =
+    view === "groups"
+      ? bookmarks
+          .flatMap((b) => {
+            const g = loadGroupCache()[b.id];
+            if (!g || !Array.isArray(g.tasks)) return [];
+            return g.tasks
+              .filter((t) => !t.note && !t.done && taskMonth(t) === todayMonth && taskDay(t) === today)
+              .map((t) => ({ groupId: b.id, groupName: b.name, groupAccent: b.accent, task: t }));
+          })
+          .sort((a, b) => {
+            const at = a.task.due.includes(" ") ? a.task.due.split(" ")[1] : "";
+            const bt = b.task.due.includes(" ") ? b.task.due.split(" ")[1] : "";
+            return at.localeCompare(bt);
+          })
+      : [];
+
+  // Best-effort display name for the dashboard greeting — whoAmI is recorded
+  // per group (not globally), so this just uses whichever bookmarked group's
+  // identity was picked first. Purely cosmetic; no group logic depends on it.
+  const dashboardGreetingName =
+    view === "groups"
+      ? (() => {
+          const cache = loadGroupCache();
+          for (const b of bookmarks) {
+            const memberId = whoAmIMap[b.id];
+            if (!memberId) continue;
+            const name = cache[b.id]?.members?.find((m) => m.id === memberId)?.name;
+            if (name) return name;
+          }
+          return null;
+        })()
+      : null;
+
   function setWhoAmI(memberId) {
     setWhoAmIMap((prev) => {
       const next = { ...prev };
@@ -867,6 +905,7 @@ export default function GroupApp() {
       });
       if (!res.ok) throw new Error("create_failed");
       const group = await res.json();
+      cacheGroup(group);
       markGroupOwned(group.id);
       setOwnedGroups((prev) => ({ ...prev, [group.id]: true }));
       setGroups((prev) => [...prev, applyNotifyPrefs([group])[0]]);
@@ -1050,6 +1089,101 @@ export default function GroupApp() {
   // group detail screen (see call sites), so it's reachable from anywhere.
   // Public to anyone using the app (no login exists to gate it with): shows
   // everyone's submissions, paginated 10 at a time, with comments on each.
+  // Persistent bottom nav shown on the 내 그룹 dashboard and inside a group.
+  // 홈/캘린더 mirror whichever group tab is open; 그룹/설정 and the floating +
+  // fall back to a "pick a group first" toast when there's no active group.
+  function renderBottomTabBar(activeKey) {
+    const tabItemStyle = (isActive) => ({
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 2,
+      padding: "6px 0",
+      color: isActive ? "var(--accent-primary)" : "var(--text-muted)",
+      fontWeight: isActive ? 700 : 500,
+      cursor: "pointer",
+    });
+    const needsGroupToast = () => {
+      setToast({ message: "먼저 그룹을 선택해주세요", undo: null });
+      setTimeout(() => setToast(null), 2000);
+    };
+    return (
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 20 }}>
+        <div
+          style={{
+            maxWidth: 420,
+            margin: "0 auto",
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            background: "var(--surface-2)",
+            borderTop: "0.5px solid var(--border)",
+            padding: "8px 4px",
+          }}
+        >
+          <div onClick={() => (view === "app" ? goToTab("home") : goToGroupsList())} style={tabItemStyle(activeKey === "home")}>
+            <Home size={22} />
+            <span style={{ fontSize: 11 }}>홈</span>
+          </div>
+          <div
+            onClick={() => (view === "app" ? goToTab("calendar") : needsGroupToast())}
+            style={tabItemStyle(activeKey === "calendar")}
+          >
+            <CalendarIcon size={22} />
+            <span style={{ fontSize: 11 }}>캘린더</span>
+          </div>
+          <div style={{ flex: 1 }} />
+          <div onClick={() => (view === "app" ? goToGroupsList() : null)} style={tabItemStyle(activeKey === "groups")}>
+            <Users size={22} />
+            <span style={{ fontSize: 11 }}>그룹</span>
+          </div>
+          <div
+            onClick={() => {
+              if (view === "app") openGroupSettings();
+              else {
+                setToast({ message: "앱 설정은 준비 중이에요", undo: null });
+                setTimeout(() => setToast(null), 2000);
+              }
+            }}
+            style={tabItemStyle(activeKey === "settings")}
+          >
+            <Settings size={22} />
+            <span style={{ fontSize: 11 }}>설정</span>
+          </div>
+          <div
+            onClick={() => {
+              if (view === "app") {
+                if (tab === "home") setShowAddTaskForm((p) => !p);
+                else setShowCalendarAddTaskForm((p) => !p);
+              } else {
+                startCreate();
+              }
+            }}
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: -18,
+              transform: "translateX(-50%)",
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "var(--accent-primary)",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.25)",
+              cursor: "pointer",
+            }}
+          >
+            <Plus size={24} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderFeedbackModal() {
     if (!feedbackOpen) return null;
     const totalPages = Math.max(1, Math.ceil(feedbackListTotal / 10));
@@ -1816,83 +1950,126 @@ export default function GroupApp() {
   if (view === "groups") {
     return (
       <>
-      <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
+      <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto", paddingBottom: 90 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 19, margin: 0 }}>
+              안녕하세요{dashboardGreetingName ? `, ${dashboardGreetingName}님` : ""} 👋
+            </p>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "2px 0 0" }}>오늘도 좋은 하루 보내세요!</p>
+          </div>
+          <Bell size={22} color="var(--text-secondary)" />
+        </div>
+
         <div
           style={{
-            background: "var(--surface-2)",
+            background: "var(--accent-primary)",
             borderRadius: 16,
-            border: "0.5px solid var(--border)",
-            padding: "1.1rem 1.25rem",
+            padding: "1rem 1.1rem",
+            marginBottom: 14,
+            color: "#fff",
           }}
         >
-          <p style={{ fontWeight: 600, fontSize: 18, margin: "0 0 14px" }}>내 그룹</p>
-          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 14px" }}>
-            로그인 없이 링크만으로 함께 써요. 그룹 안 내용은 링크를 받은 멤버들과 함께 보고 수정할 수 있지만, 이
-            "내 그룹" 목록은 이 브라우저에만 저장되는 개인 바로가기라 다른 사람이 내 그룹 전체 목록을 볼 수는
-            없어요.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            {bookmarks.map((b) => (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>오늘의 일정</span>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                background: "rgba(255,255,255,0.25)",
+                borderRadius: 20,
+                padding: "1px 9px",
+              }}
+            >
+              {todayScheduleItems.length}
+            </span>
+          </div>
+          {todayScheduleItems.length === 0 ? (
+            <p style={{ fontSize: 14, margin: 0, opacity: 0.9 }}>오늘 남은 일정이 없어요.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {todayScheduleItems.slice(0, 4).map(({ groupId, task }) => (
+                <div key={`${groupId}-${task.id}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+                  {task.due.includes(" ") && (
+                    <span style={{ opacity: 0.85, minWidth: 42 }}>{task.due.split(" ")[1]}</span>
+                  )}
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {task.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {bookmarks.map((b) => (
+            <div
+              key={b.id}
+              onClick={() => openGroup(b.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                background: "var(--surface-2)",
+                border: "0.5px solid var(--border)",
+                borderRadius: 12,
+                padding: "12px 14px",
+                cursor: "pointer",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              }}
+            >
               <div
-                key={b.id}
-                onClick={() => openGroup(b.id)}
                 style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  background: b.accentBg,
+                  color: b.accent,
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
-                  border: "0.5px solid var(--border)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  cursor: "pointer",
+                  justifyContent: "center",
+                  flexShrink: 0,
                 }}
               >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    background: b.accentBg,
-                    color: b.accent,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Users size={21} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{b.name}</p>
-                  <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>{b.memberCount}명</p>
-                </div>
-                <ChevronRight size={20} color="var(--text-muted)" />
+                <Users size={21} />
               </div>
-            ))}
-            {bookmarks.length === 0 && (
-              <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>
-                아직 만든 그룹이 없어요. 새로 만들거나, 공유받은 링크로 접속해 보세요.
-              </p>
-            )}
-          </div>
-          <button onClick={startCreate} style={{ width: "100%", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <Plus size={19} /> 새 그룹 만들기
-          </button>
-          <button
-            onClick={openFeedback}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              background: "transparent",
-              border: "0.5px solid var(--border)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            피드백 남기기
-          </button>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{b.name}</p>
+                <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>{b.memberCount}명</p>
+              </div>
+              <ChevronRight size={20} color="var(--text-muted)" />
+            </div>
+          ))}
+          {bookmarks.length === 0 && (
+            <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0 }}>
+              아직 만든 그룹이 없어요. 새로 만들거나, 공유받은 링크로 접속해 보세요.
+            </p>
+          )}
         </div>
+        <button onClick={startCreate} style={{ width: "100%", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Plus size={19} /> 새 그룹 만들기
+        </button>
+        <button
+          onClick={openFeedback}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            background: "transparent",
+            border: "0.5px solid var(--border)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          피드백 남기기
+        </button>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "10px 0 0", textAlign: "center" }}>
+          "내 그룹" 목록은 로그인 없이 이 기기에만 저장돼요.
+        </p>
       </div>
+      {renderBottomTabBar("home")}
       {renderFeedbackModal()}
       </>
     );
@@ -2039,7 +2216,7 @@ export default function GroupApp() {
 
   return (
     <>
-    <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto" }}>
+    <div style={{ fontFamily: "var(--font-sans)", maxWidth: 420, margin: "0 auto", paddingBottom: 90 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <ChevronLeft size={21} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={goBack} />
@@ -3461,6 +3638,7 @@ export default function GroupApp() {
         </div>
       )}
     </div>
+    {renderBottomTabBar(tab)}
     {renderFeedbackModal()}
     </>
   );
