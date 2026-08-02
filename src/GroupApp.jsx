@@ -3164,8 +3164,25 @@ export default function GroupApp() {
               overflowY: "auto",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <p style={{ fontWeight: 600, fontSize: 17, margin: 0 }}>그룹 설정</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 12,
+                    background: active.accentBg,
+                    color: active.accent,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Users size={20} />
+                </div>
+                <p style={{ fontWeight: 700, fontSize: 17, margin: 0 }}>그룹 관리</p>
+              </div>
               <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeGroupSettings} />
             </div>
 
@@ -3174,55 +3191,61 @@ export default function GroupApp() {
               value={draftGroupName}
               onChange={(e) => setDraftGroupName(e.target.value)}
               placeholder="그룹 이름을 입력하세요"
-              style={{ width: "100%", marginBottom: 12 }}
+              style={{ width: "100%", marginBottom: 16 }}
             />
-            <button
-              onClick={shareGroupLink}
-              style={{
-                width: "100%",
-                marginBottom: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                background: "transparent",
-                border: "0.5px solid var(--border)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              <Share2 size={19} /> 그룹 초대/공유하기
-            </button>
-            {pushSupported && isPushSubscribed && (
-              <button
-                onClick={unsubscribeFromPush}
-                disabled={pushBusy}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              <div
+                onClick={shareGroupLink}
                 style={{
-                  width: "100%",
-                  marginBottom: 16,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  background: "transparent",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 10,
                   border: "0.5px solid var(--border)",
-                  color: "var(--text-secondary)",
+                  cursor: "pointer",
                 }}
               >
-                <Bell size={19} /> {pushBusy ? "해제 중..." : "이 그룹 공지 알림 끄기"}
-              </button>
-            )}
-            <button
-              onClick={openFeedback}
-              style={{
-                width: "100%",
-                marginBottom: 16,
-                background: "transparent",
-                border: "0.5px solid var(--border)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              피드백 남기기
-            </button>
+                <Share2 size={19} color="var(--accent-primary)" />
+                <span style={{ flex: 1, fontSize: 15 }}>그룹 초대/공유하기</span>
+                <ChevronRight size={18} color="var(--text-muted)" />
+              </div>
+              {pushSupported && isPushSubscribed && (
+                <div
+                  onClick={() => !pushBusy && unsubscribeFromPush()}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "0.5px solid var(--border)",
+                    cursor: pushBusy ? "default" : "pointer",
+                    opacity: pushBusy ? 0.6 : 1,
+                  }}
+                >
+                  <Bell size={19} color="var(--accent-primary)" />
+                  <span style={{ flex: 1, fontSize: 15 }}>{pushBusy ? "해제 중..." : "이 그룹 공지 알림 끄기"}</span>
+                </div>
+              )}
+              <div
+                onClick={openFeedback}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "0.5px solid var(--border)",
+                  cursor: "pointer",
+                }}
+              >
+                <StickyNote size={19} color="var(--accent-primary)" />
+                <span style={{ flex: 1, fontSize: 15 }}>피드백 남기기</span>
+                <ChevronRight size={18} color="var(--text-muted)" />
+              </div>
+            </div>
 
             <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
             <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
