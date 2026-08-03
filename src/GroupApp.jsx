@@ -3015,13 +3015,14 @@ export default function GroupApp() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 2 }}>
               {weeks.flat().map((d, i) => {
-                if (!d) return <div key={i} style={{ height: 60 }} />;
+                if (!d) return <div key={i} style={{ height: 72 }} />;
                 const dayTasksForDot = tasksOnDay(d).filter((t) => !t.note);
-                const dayHasMemo = tasksOnDay(d).some((t) => t.note);
+                const dayMemosForDot = tasksOnDay(d).filter((t) => t.note);
                 const dotColors = [
                   ...dayTasksForDot.map((t) => t.color || active.accent),
                   ...eventsOnDay(d).map(() => active.accent),
                 ];
+                const memoColors = dayMemosForDot.map((m) => m.color || "#8B5CF6");
                 const isSelected = d === selectedDay;
                 return (
                   <div
@@ -3031,7 +3032,7 @@ export default function GroupApp() {
                       setShowCalendarAddTaskForm(false);
                     }}
                     style={{
-                      height: 60,
+                      height: 72,
                       border: isSelected ? `1px solid ${active.accent}` : "0.5px solid var(--border)",
                       background: isSelected ? active.accentBg : "transparent",
                       borderRadius: 6,
@@ -3041,7 +3042,7 @@ export default function GroupApp() {
                     }}
                   >
                     <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 700 : 500 }}>{d}</div>
-                    {(dotColors.length > 0 || dayHasMemo) && (
+                    {dotColors.length > 0 && (
                       <div style={{ display: "flex", gap: 3, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
                         {dotColors.slice(0, 4).map((c, idx) => (
                           <span
@@ -3052,7 +3053,20 @@ export default function GroupApp() {
                         {dotColors.length > 4 && (
                           <span style={{ fontSize: 9, color: "var(--text-muted)" }}>+{dotColors.length - 4}</span>
                         )}
-                        {dayHasMemo && <StickyNote size={11} color="var(--text-muted)" />}
+                      </div>
+                    )}
+                    {memoColors.length > 0 && (
+                      <div style={{ display: "flex", gap: 3, marginTop: 3, alignItems: "center", flexWrap: "wrap" }}>
+                        {memoColors.slice(0, 3).map((c, idx) => (
+                          <span
+                            key={idx}
+                            style={{ width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block", flexShrink: 0 }}
+                          />
+                        ))}
+                        {memoColors.length > 3 && (
+                          <span style={{ fontSize: 9, color: "var(--text-muted)" }}>+{memoColors.length - 3}</span>
+                        )}
+                        <span style={{ fontSize: 9, color: "var(--text-muted)" }}>메</span>
                       </div>
                     )}
                   </div>
