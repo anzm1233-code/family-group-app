@@ -1205,7 +1205,7 @@ export default function GroupApp() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 10,
+          zIndex: 25,
         }}
         onClick={() => setGuideOpen(false)}
       >
@@ -1414,7 +1414,7 @@ export default function GroupApp() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 20,
+          zIndex: 25,
         }}
         onClick={closeFeedback}
       >
@@ -2337,7 +2337,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={() => setAppSettingsOpen(false)}
         >
@@ -3454,7 +3454,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={() => setTimePickerOpen(false)}
         >
@@ -3511,7 +3511,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={() => setCarryOverDatePickerOpen(false)}
         >
@@ -3562,7 +3562,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={() => setShowNewTaskLocation(false)}
         >
@@ -3623,7 +3623,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 11,
+            zIndex: 26,
           }}
           onClick={() => setShowTaskLocationInput(false)}
         >
@@ -3694,7 +3694,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={closeGroupSettings}
         >
@@ -3991,7 +3991,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={closeInviteScreen}
         >
@@ -4082,7 +4082,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={closeActivityScreen}
         >
@@ -4166,7 +4166,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={() => setMemoListOpen(false)}
         >
@@ -4273,7 +4273,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={closeTaskDetail}
         >
@@ -4497,7 +4497,7 @@ export default function GroupApp() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            zIndex: 25,
           }}
           onClick={closeEventDetail}
         >
