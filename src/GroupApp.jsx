@@ -115,6 +115,11 @@ function applyNotifyPrefs(groups) {
   }));
 }
 
+// Per-item color tag, independent of the group's own accent color — lets
+// someone visually distinguish individual tasks/events on the calendar and
+// in lists, matching how the reference design uses a colored dot per row.
+const TASK_COLORS = ["#4F7CFF", "#22C55E", "#FFB020", "#EC4899", "#8B5CF6", "#6B7280"];
+
 const QUICK_START = {
   family: {
     label: "가족으로 시작",
@@ -467,6 +472,7 @@ export default function GroupApp() {
   const [editingMemoText, setEditingMemoText] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
+  const [newTaskColor, setNewTaskColor] = useState(TASK_COLORS[0]);
   const [newTaskBroadcast, setNewTaskBroadcast] = useState(false);
   const [newTaskPrivate, setNewTaskPrivate] = useState(false);
   const [newTaskAssignee, setNewTaskAssignee] = useState(null);
@@ -495,6 +501,7 @@ export default function GroupApp() {
   const [draftAssignee, setDraftAssignee] = useState(null);
   const [draftDueDate, setDraftDueDate] = useState(""); // yyyy-mm-dd, for <input type="date">
   const [draftDueTime, setDraftDueTime] = useState(""); // HH:MM, for <input type="time">
+  const [draftColor, setDraftColor] = useState(TASK_COLORS[0]);
 
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [inviteScreenOpen, setInviteScreenOpen] = useState(false);
@@ -1481,6 +1488,7 @@ export default function GroupApp() {
     setDraftPhotos(t.photos || []);
     setDraftPrivate(!!t.private);
     setDraftAssignee(t.assignee || null);
+    setDraftColor(t.color || TASK_COLORS[0]);
     const dayNum = taskDay(t);
     const monthNum = taskMonth(t);
     setDraftDueDate(
@@ -1517,6 +1525,7 @@ export default function GroupApp() {
       private: draftPrivate,
       assignee: draftAssignee,
       due: newDue,
+      color: draftColor,
     };
     runGroupOp(
       { op: "editTask", taskId, patch },
@@ -1672,11 +1681,13 @@ export default function GroupApp() {
       broadcast: newTaskBroadcast,
       private: newTaskPrivate,
       photos: newTaskPhotos,
+      color: newTaskColor,
     };
     const actorName = myMemberId ? memberById[myMemberId]?.name : null;
     runGroupOp({ op: "addTask", task, actorName }, (g) => ({ ...g, tasks: [...g.tasks, task] }));
     setNewTaskTitle("");
     setNewTaskTime("");
+    setNewTaskColor(TASK_COLORS[0]);
     setNewTaskBroadcast(false);
     setNewTaskPrivate(false);
     setNewTaskPhotos([]);
@@ -1791,6 +1802,24 @@ export default function GroupApp() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>색상</span>
+              {TASK_COLORS.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => setNewTaskColor(c)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: c,
+                    cursor: "pointer",
+                    border: newTaskColor === c ? "2px solid var(--text-primary)" : "2px solid transparent",
+                    boxShadow: "0 0 0 1px var(--border)",
+                  }}
+                />
+              ))}
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
               {newTaskPhotos.map((src, idx) => (
@@ -2018,12 +2047,6 @@ export default function GroupApp() {
   // Events/tasks don't carry a year, so this is scoped to the viewed month only.
   const eventsOnDay = (d) => (active ? active.events.filter((e) => e.date === d) : []);
   const tasksOnDay = (d) => (active ? active.tasks.filter((t) => taskMonth(t) === viewMonth && taskDay(t) === d) : []);
-  const dayAssignees = (d) => [
-    ...eventsOnDay(d).flatMap((e) => e.assignees),
-    ...tasksOnDay(d)
-      .map((t) => t.assignee)
-      .filter(Boolean),
-  ];
   const dayEvents = eventsOnDay(selectedDay);
   const dayTasks = tasksOnDay(selectedDay).filter((t) => !t.note);
   const dayMemos = tasksOnDay(selectedDay).filter((t) => t.note);
@@ -2725,6 +2748,9 @@ export default function GroupApp() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span
+                      style={{ width: 9, height: 9, borderRadius: "50%", background: t.color || active.accent, flexShrink: 0 }}
+                    />
                     <input type="checkbox" checked={t.done} onClick={(e) => e.stopPropagation()} onChange={() => toggleTask(t.id)} />
                     {t.broadcast && <Megaphone size={20} color={active.accent} />}
                     <span style={{ fontSize: 13, color: t.broadcast ? active.accent : "var(--text-muted)" }}>
@@ -2836,6 +2862,9 @@ export default function GroupApp() {
                     <div style={{ width: 34, textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>
                       {item.month}/{item.day}
                     </div>
+                    <span
+                      style={{ width: 8, height: 8, borderRadius: "50%", background: item.data.color || active.accent, flexShrink: 0 }}
+                    />
                     {item.data.broadcast && <Megaphone size={18} color={active.accent} />}
                     <div style={{ flex: 1 }}>{item.data.title}</div>
                     {!item.data.broadcast && !item.data.private && item.data.assignee && (
@@ -2856,6 +2885,9 @@ export default function GroupApp() {
                     <div style={{ width: 34, textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>
                       {item.month}/{item.day}
                     </div>
+                    <span
+                      style={{ width: 8, height: 8, borderRadius: "50%", background: active.accent, flexShrink: 0 }}
+                    />
                     <div style={{ flex: 1 }}>{item.data.title}</div>
                     <Bell
                       size={17}
@@ -2905,9 +2937,12 @@ export default function GroupApp() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 2 }}>
               {weeks.flat().map((d, i) => {
                 if (!d) return <div key={i} style={{ height: 60 }} />;
-                const assignees = dayAssignees(d);
-                const broadcastCount = tasksOnDay(d).filter((t) => t.broadcast).length;
-                const memoCount = tasksOnDay(d).filter((t) => t.note).length;
+                const dayTasksForDot = tasksOnDay(d).filter((t) => !t.note);
+                const dayHasMemo = tasksOnDay(d).some((t) => t.note);
+                const dotColors = [
+                  ...dayTasksForDot.map((t) => t.color || active.accent),
+                  ...eventsOnDay(d).map(() => active.accent),
+                ];
                 const isSelected = d === selectedDay;
                 return (
                   <div
@@ -2927,23 +2962,18 @@ export default function GroupApp() {
                     }}
                   >
                     <div style={{ color: isSelected ? active.accent : "var(--text-primary)", fontWeight: isSelected ? 700 : 500 }}>{d}</div>
-                    {(assignees.length > 0 || broadcastCount > 0 || memoCount > 0) && (
-                      <div style={{ display: "flex", gap: 1, marginTop: 2, alignItems: "center" }}>
-                        {broadcastCount > 0 && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 1, color: active.accent }}>
-                            <Megaphone size={15} />
-                            {broadcastCount > 1 && <span style={{ fontSize: 11 }}>{broadcastCount}</span>}
-                          </span>
-                        )}
-                        {memoCount > 0 && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 1, color: "var(--text-muted)" }}>
-                            <StickyNote size={14} />
-                            {memoCount > 1 && <span style={{ fontSize: 11 }}>{memoCount}</span>}
-                          </span>
-                        )}
-                        {assignees.slice(0, 2).map((a, idx) => (
-                          <Avatar key={idx} tier={memberById[a]?.tier ?? 0} size={17} photo={memberById[a]?.photo} />
+                    {(dotColors.length > 0 || dayHasMemo) && (
+                      <div style={{ display: "flex", gap: 3, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
+                        {dotColors.slice(0, 4).map((c, idx) => (
+                          <span
+                            key={idx}
+                            style={{ width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block", flexShrink: 0 }}
+                          />
                         ))}
+                        {dotColors.length > 4 && (
+                          <span style={{ fontSize: 9, color: "var(--text-muted)" }}>+{dotColors.length - 4}</span>
+                        )}
+                        {dayHasMemo && <StickyNote size={11} color="var(--text-muted)" />}
                       </div>
                     )}
                   </div>
@@ -2963,26 +2993,24 @@ export default function GroupApp() {
                 <div
                   key={"e" + e.id}
                   onClick={() => openEventDetail(e)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, marginBottom: 4, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, marginBottom: 6, cursor: "pointer" }}
                 >
-                  <Avatar tier={memberById[e.assignees[0]]?.tier ?? 0} size={20} photo={memberById[e.assignees[0]]?.photo} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: active.accent, flexShrink: 0 }} />
+                  {e.time && <span style={{ fontSize: 13, color: "var(--text-muted)", minWidth: 42 }}>{e.time}</span>}
                   <span style={{ flex: 1 }}>{e.title}</span>
-                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{e.time}</span>
+                  <Avatar tier={memberById[e.assignees[0]]?.tier ?? 0} size={20} photo={memberById[e.assignees[0]]?.photo} />
                 </div>
               ))}
               {dayTasks.map((t) => (
                 <div
                   key={"t" + t.id}
                   onClick={() => openTaskDetail(t)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, marginBottom: 4, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, marginBottom: 6, cursor: "pointer" }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={t.done}
-                    onClick={(ev) => ev.stopPropagation()}
-                    onChange={() => toggleTask(t.id)}
-                  />
-                  {t.broadcast && <Megaphone size={18} color={active.accent} />}
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: t.color || active.accent, flexShrink: 0 }} />
+                  {t.due.includes(" ") && (
+                    <span style={{ fontSize: 13, color: "var(--text-muted)", minWidth: 42 }}>{t.due.split(" ")[1]}</span>
+                  )}
                   <span
                     style={{
                       flex: 1,
@@ -2992,12 +3020,15 @@ export default function GroupApp() {
                   >
                     {t.title}
                   </span>
-                  {t.private && <Lock size={16} color="var(--text-muted)" />}
-                  {t.location && <MapPin size={16} color="var(--text-muted)" />}
-                  {!t.broadcast && t.assignee && (
-                    <Avatar tier={memberById[t.assignee]?.tier ?? 0} size={20} photo={memberById[t.assignee]?.photo} />
-                  )}
-                  {t.due.includes(" ") && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t.due.split(" ")[1]}</span>}
+                  {t.broadcast && <Megaphone size={16} color={active.accent} />}
+                  {t.private && <Lock size={14} color="var(--text-muted)" />}
+                  {t.location && <MapPin size={14} color="var(--text-muted)" />}
+                  <input
+                    type="checkbox"
+                    checked={t.done}
+                    onClick={(ev) => ev.stopPropagation()}
+                    onChange={() => toggleTask(t.id)}
+                  />
                 </div>
               ))}
               {dayMemos.map((m) => (
@@ -3867,6 +3898,25 @@ export default function GroupApp() {
                 onChange={(e) => setDraftDueTime(e.target.value)}
                 style={{ fontSize: 14, padding: "3px 6px" }}
               />
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>색상</span>
+              {TASK_COLORS.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => setDraftColor(c)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: c,
+                    cursor: "pointer",
+                    border: draftColor === c ? "2px solid var(--text-primary)" : "2px solid transparent",
+                    boxShadow: "0 0 0 1px var(--border)",
+                  }}
+                />
+              ))}
             </div>
 
             {draftLocation && (
