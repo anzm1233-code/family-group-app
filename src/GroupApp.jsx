@@ -2644,10 +2644,11 @@ export default function GroupApp() {
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <Bell
               size={23}
-              color="var(--text-secondary)"
+              color={isPushSubscribed ? active.accent : "var(--text-secondary)"}
+              fill={isPushSubscribed ? active.accent : "none"}
               style={{ cursor: "pointer" }}
               onClick={openActivityScreen}
-              title="알림"
+              title={isPushSubscribed ? "알림 받는 중" : "알림"}
             />
             <Share2
               size={23}
