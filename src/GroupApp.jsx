@@ -468,8 +468,10 @@ export default function GroupApp() {
   const [showCalendarAddTaskForm, setShowCalendarAddTaskForm] = useState(false);
   const [showMemoForm, setShowMemoForm] = useState(false);
   const [newMemoTitle, setNewMemoTitle] = useState("");
+  const [newMemoColor, setNewMemoColor] = useState(TASK_COLORS[0]);
   const [editingMemoId, setEditingMemoId] = useState(null);
   const [editingMemoText, setEditingMemoText] = useState("");
+  const [editingMemoColor, setEditingMemoColor] = useState(TASK_COLORS[0]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskColor, setNewTaskColor] = useState(TASK_COLORS[0]);
@@ -1712,16 +1714,19 @@ export default function GroupApp() {
       broadcast: false,
       private: false,
       note: true,
+      color: newMemoColor,
     };
     const actorName = myMemberId ? memberById[myMemberId]?.name : null;
     runGroupOp({ op: "addTask", task: memo, actorName }, (g) => ({ ...g, tasks: [...g.tasks, memo] }));
     setNewMemoTitle("");
+    setNewMemoColor(TASK_COLORS[0]);
     return true;
   }
 
   function startEditingMemo(memo) {
     setEditingMemoId(memo.id);
     setEditingMemoText(memo.title);
+    setEditingMemoColor(memo.color || TASK_COLORS[0]);
   }
 
   function saveMemoEdit() {
@@ -1729,7 +1734,7 @@ export default function GroupApp() {
     const title = editingMemoText.trim();
     setEditingMemoId(null);
     if (!title) return;
-    const patch = { title };
+    const patch = { title, color: editingMemoColor };
     runGroupOp(
       { op: "editTask", taskId, patch },
       (g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) })
@@ -3110,8 +3115,8 @@ export default function GroupApp() {
                   key={"m" + m.id}
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: 8,
+                    flexDirection: "column",
+                    gap: 6,
                     fontSize: 14,
                     marginBottom: 4,
                     padding: "6px 8px",
@@ -3119,7 +3124,8 @@ export default function GroupApp() {
                     background: "var(--surface-1)",
                   }}
                 >
-                  <StickyNote size={16} color="var(--text-muted)" />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <StickyNote size={16} color={m.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
                   {editingMemoId === m.id ? (
                     <input
                       autoFocus
@@ -3141,6 +3147,27 @@ export default function GroupApp() {
                     </span>
                   )}
                   <Trash2 size={16} color="var(--text-muted)" style={{ cursor: "pointer" }} onClick={() => deleteTask(m)} />
+                  </div>
+                  {editingMemoId === m.id && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 24, flexWrap: "wrap" }}>
+                      {TASK_COLORS.map((c) => (
+                        <div
+                          key={c}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => setEditingMemoColor(c)}
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            background: c,
+                            cursor: "pointer",
+                            border: editingMemoColor === c ? "2px solid var(--text-primary)" : "2px solid transparent",
+                            boxShadow: "0 0 0 1px var(--border)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <div style={{ marginTop: 10 }}>
@@ -3174,20 +3201,40 @@ export default function GroupApp() {
                   )}
                 </button>
                 {showMemoForm && (
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <input
-                      value={newMemoTitle}
-                      onChange={(e) => setNewMemoTitle(e.target.value)}
-                      placeholder="예: 영희 8/10~8/15 휴가"
-                      style={{ flex: 1, minWidth: 0 }}
-                    />
-                    <button
-                      onClick={() => {
-                        if (addMemo(viewMonth, selectedDay)) setShowMemoForm(false);
-                      }}
-                    >
-                      추가
-                    </button>
+                  <div>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                      <input
+                        value={newMemoTitle}
+                        onChange={(e) => setNewMemoTitle(e.target.value)}
+                        placeholder="예: 영희 8/10~8/15 휴가"
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (addMemo(viewMonth, selectedDay)) setShowMemoForm(false);
+                        }}
+                      >
+                        추가
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>색상</span>
+                      {TASK_COLORS.map((c) => (
+                        <div
+                          key={c}
+                          onClick={() => setNewMemoColor(c)}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            background: c,
+                            cursor: "pointer",
+                            border: newMemoColor === c ? "2px solid var(--text-primary)" : "2px solid transparent",
+                            boxShadow: "0 0 0 1px var(--border)",
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -3955,14 +4002,15 @@ export default function GroupApp() {
                     key={m.id}
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: 8,
+                      flexDirection: "column",
+                      gap: 6,
                       fontSize: 14,
                       padding: "8px 4px",
                       borderBottom: "0.5px solid var(--border)",
                     }}
                   >
-                    <StickyNote size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <StickyNote size={16} color={m.color || "var(--text-muted)"} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 13, color: "var(--text-muted)", minWidth: 40 }}>
                       {taskMonth(m)}/{taskDay(m)}
                     </span>
@@ -3984,6 +4032,27 @@ export default function GroupApp() {
                       </span>
                     )}
                     <Trash2 size={15} color="var(--text-muted)" style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => deleteTask(m)} />
+                    </div>
+                    {editingMemoId === m.id && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 48, flexWrap: "wrap" }}>
+                        {TASK_COLORS.map((c) => (
+                          <div
+                            key={c}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => setEditingMemoColor(c)}
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              background: c,
+                              cursor: "pointer",
+                              border: editingMemoColor === c ? "2px solid var(--text-primary)" : "2px solid transparent",
+                              boxShadow: "0 0 0 1px var(--border)",
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
             </div>
