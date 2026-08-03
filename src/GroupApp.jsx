@@ -649,12 +649,26 @@ export default function GroupApp() {
 
   async function subscribeToPush() {
     if (!pushSupported || !activeId) return;
+    // iOS Safari only supports Web Push for a site that's been added to the
+    // home screen (standalone mode) — a regular Safari tab will silently
+    // fail the permission/subscribe calls, which used to look like nothing
+    // happened. Catch that case up front with an actionable message instead.
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone;
+    if (isIos && !isStandalone) {
+      setToast({
+        message: "아이폰에서는 홈 화면에 추가한 뒤에만 알림을 받을 수 있어요. 공유 버튼 → 홈 화면에 추가를 먼저 해주세요",
+        undo: null,
+      });
+      setTimeout(() => setToast(null), 5000);
+      return;
+    }
     setPushBusy(true);
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setToast({ message: "알림이 차단되어 있어요. 브라우저 설정에서 허용해주세요", undo: null });
-        setTimeout(() => setToast(null), 3000);
+        setTimeout(() => setToast(null), 4000);
         return;
       }
       const registration = await navigator.serviceWorker.register("/sw.js");
@@ -663,7 +677,7 @@ export default function GroupApp() {
       const { publicKey } = await keyRes.json();
       if (!publicKey) {
         setToast({ message: "알림 기능이 아직 준비되지 않았어요", undo: null });
-        setTimeout(() => setToast(null), 3000);
+        setTimeout(() => setToast(null), 4000);
         return;
       }
       let subscription = await registration.pushManager.getSubscription();
@@ -691,12 +705,12 @@ export default function GroupApp() {
       }
       setPushSubscribedGroups((prev) => ({ ...prev, [activeId]: true }));
       setPushSubscribedGroup(activeId, true);
-      setToast({ message: "이 그룹의 공지 알림을 받도록 설정했어요", undo: null });
-      setTimeout(() => setToast(null), 2500);
+      setToast({ message: "✅ 알림이 설정되었어요", undo: null });
+      setTimeout(() => setToast(null), 4000);
     } catch (err) {
       console.error("push subscribe failed", err);
-      setToast({ message: "알림 설정에 실패했어요", undo: null });
-      setTimeout(() => setToast(null), 2500);
+      setToast({ message: "알림 설정에 실패했어요. 잠시 후 다시 시도해주세요", undo: null });
+      setTimeout(() => setToast(null), 4000);
     } finally {
       setPushBusy(false);
     }
