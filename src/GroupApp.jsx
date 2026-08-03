@@ -510,6 +510,7 @@ export default function GroupApp() {
   const [activityLoading, setActivityLoading] = useState(false);
   const [inviteQrDataUrl, setInviteQrDataUrl] = useState(null);
   const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [memoListOpen, setMemoListOpen] = useState(false);
   const [themeOverride, setThemeOverride] = useState(() => loadThemeOverride());
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
@@ -2572,6 +2573,51 @@ export default function GroupApp() {
           </select>
         </div>
 
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+          {[
+            {
+              key: "schedule",
+              label: "공유 일정",
+              icon: CalendarIcon,
+              count: active.tasks.filter((t) => !t.note && !t.private).length + active.events.length,
+              onClick: () => goToTab("calendar"),
+            },
+            {
+              key: "memo",
+              label: "공유 메모",
+              icon: StickyNote,
+              count: active.tasks.filter((t) => t.note).length,
+              onClick: () => setMemoListOpen(true),
+            },
+            {
+              key: "todo",
+              label: "할일",
+              icon: Check,
+              count: active.tasks.filter((t) => !t.note && isTaskDueToday(t) && !t.done).length,
+              onClick: () => goToTab("home"),
+            },
+          ].map((item) => (
+            <div
+              key={item.key}
+              onClick={item.onClick}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "0.5px solid var(--border)",
+                cursor: "pointer",
+              }}
+            >
+              <item.icon size={19} color={active.accent} />
+              <span style={{ flex: 1, fontSize: 15 }}>{item.label}</span>
+              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{item.count}건</span>
+              <ChevronRight size={18} color="var(--text-muted)" />
+            </div>
+          ))}
+        </div>
+
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           <button
             onClick={() => goToTab("home")}
@@ -3820,6 +3866,87 @@ export default function GroupApp() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {memoListOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+          onClick={() => setMemoListOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: 16,
+              padding: "1.25rem 1.4rem",
+              width: 340,
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <p style={{ fontWeight: 700, fontSize: 17, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <StickyNote size={19} /> 공유 메모
+              </p>
+              <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setMemoListOpen(false)} />
+            </div>
+
+            {active.tasks.filter((t) => t.note).length === 0 && (
+              <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>아직 메모가 없어요.</p>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {active.tasks
+                .filter((t) => t.note)
+                .sort((a, b) => taskMonth(a) - taskMonth(b) || taskDay(a) - taskDay(b))
+                .map((m) => (
+                  <div
+                    key={m.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 14,
+                      padding: "8px 4px",
+                      borderBottom: "0.5px solid var(--border)",
+                    }}
+                  >
+                    <StickyNote size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: "var(--text-muted)", minWidth: 40 }}>
+                      {taskMonth(m)}/{taskDay(m)}
+                    </span>
+                    {editingMemoId === m.id ? (
+                      <input
+                        autoFocus
+                        value={editingMemoText}
+                        onChange={(e) => setEditingMemoText(e.target.value)}
+                        onBlur={saveMemoEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                          if (e.key === "Escape") setEditingMemoId(null);
+                        }}
+                        style={{ flex: 1, minWidth: 0, fontSize: 14, padding: "4px 6px" }}
+                      />
+                    ) : (
+                      <span onClick={() => startEditingMemo(m)} style={{ flex: 1, cursor: "pointer" }}>
+                        {m.title}
+                      </span>
+                    )}
+                    <Trash2 size={15} color="var(--text-muted)" style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => deleteTask(m)} />
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
       )}
