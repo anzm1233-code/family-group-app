@@ -2644,8 +2644,8 @@ export default function GroupApp() {
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <Bell
               size={23}
-              color={isPushSubscribed ? active.accent : "var(--text-secondary)"}
-              fill={isPushSubscribed ? active.accent : "none"}
+              color={isPushSubscribed ? "#FFB020" : "var(--text-secondary)"}
+              fill={isPushSubscribed ? "#FFB020" : "none"}
               style={{ cursor: "pointer" }}
               onClick={openActivityScreen}
               title={isPushSubscribed ? "알림 받는 중" : "알림"}
