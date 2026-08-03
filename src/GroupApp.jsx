@@ -993,7 +993,7 @@ export default function GroupApp() {
   async function copyGroupLink(url) {
     try {
       await navigator.clipboard.writeText(url);
-      setToast({ message: "주소가 복사됐어요. 초대할 사람에게 보내세요", undo: null });
+      setToast({ message: "초대하고 싶은 멤버에게 주소를 보내주세요", undo: null });
     } catch {
       setToast({ message: `복사에 실패했어요. 직접 복사해 주세요: ${url}`, undo: null });
     }
@@ -1016,20 +1016,6 @@ export default function GroupApp() {
   function closeInviteScreen() {
     setInviteScreenOpen(false);
     setInviteQrDataUrl(null);
-  }
-
-  async function shareInviteLink() {
-    const url = `${window.location.origin}/g/${active.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ url, title: active?.name });
-        return;
-      } catch {
-        // user cancelled the native share sheet, or it's unsupported for
-        // this content — copying the link is still a complete fallback.
-      }
-    }
-    copyGroupLink(url);
   }
 
   function openActivityScreen() {
@@ -3884,10 +3870,6 @@ export default function GroupApp() {
                 복사
               </span>
             </div>
-
-            <button onClick={shareInviteLink} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Share2 size={19} /> 초대 링크 공유
-            </button>
           </div>
         </div>
       )}
