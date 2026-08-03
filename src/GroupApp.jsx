@@ -1191,6 +1191,130 @@ export default function GroupApp() {
   // Persistent bottom nav shown on the 내 그룹 dashboard and inside a group.
   // 홈/캘린더 mirror whichever group tab is open; 그룹/설정 and the floating +
   // fall back to a "pick a group first" toast when there's no active group.
+  // Shared so it can be opened from both the app-level 설정 screen (내 그룹
+  // dashboard) and the per-group 그룹 관리 modal — reachable no matter which
+  // "설정" the user happens to be looking at.
+  function renderGuideModal() {
+    if (!guideOpen) return null;
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.45)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 10,
+        }}
+        onClick={() => setGuideOpen(false)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: "var(--surface-2)",
+            borderRadius: 16,
+            padding: "1.25rem 1.4rem",
+            width: 340,
+            maxWidth: "90vw",
+            maxHeight: "85vh",
+            overflowY: "auto",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <p style={{ fontWeight: 700, fontSize: 17, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#EAF0FF", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Info size={16} color="#4F7CFF" />
+              </span>
+              사용 가이드
+            </p>
+            <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setGuideOpen(false)} />
+          </div>
+
+          {[
+            {
+              key: "start",
+              title: "① 시작하기",
+              gradient: "linear-gradient(90deg, #4F7CFF, #22C55E)",
+              items: [
+                { icon: "🔗", color: "#4F7CFF", title: "초대 링크로 접속하기", desc: "그룹장이 보내준 링크를 누르면 바로 그룹 화면으로 들어가요. 회원가입이나 앱 설치는 필요 없어요." },
+                { icon: "👤", color: "#22C55E", title: "내 이름 선택하기", desc: "\"당신은 누구인가요?\" 화면에서 구성원 목록 중 본인 이름을 선택해요." },
+                { icon: "✨", color: "#FFB020", title: "(그룹장이라면) 새 그룹 만들기", desc: "가족 / 회사·팀 / 학급 / 직접 만들기 중 원하는 종류를 고르고, 그룹 이름을 입력하면 끝!" },
+                { icon: "🔔", color: "#EC4899", title: "알림 켜기", desc: "화면 위 \"알림받기\" 배너를 누르면, 새 일정이 올라올 때마다 알림을 받을 수 있어요." },
+              ],
+            },
+            {
+              key: "use",
+              title: "② 사용 방법",
+              gradient: "linear-gradient(90deg, #8B5CF6, #EC4899)",
+              items: [
+                { icon: "✅", color: "#4F7CFF", title: "오늘 할일 확인하고 체크하기", desc: "홈 화면에서 오늘 할일과 공지를 보고 체크박스로 완료 표시를 해요. 못 끝낸 일은 다음 날로 넘길 수 있어요." },
+                { icon: "➕", color: "#22C55E", title: "일정 추가하기", desc: "제목, 시간, 담당자, 색상, 장소, 사진까지 넣고 \"전체에게 공지\" 또는 \"나만 보기\"로 공개 범위를 정해요." },
+                { icon: "📅", color: "#FFB020", title: "전체 캘린더 보기", desc: "월별 달력에서 날짜마다 컬러 점으로 일정과 메모를 한눈에 확인해요." },
+                { icon: "📝", color: "#EC4899", title: "메모 남기기", desc: "체크박스 없는 자유 메모를 캘린더에 색깔까지 정해서 남길 수 있어요." },
+                { icon: "📌", color: "#8B5CF6", title: "공유 일정 / 공유 메모 / 오늘 할일 메뉴", desc: "그룹 화면 상단 3개 메뉴에서 각 항목이 몇 건인지 바로 확인하고 이동해요." },
+                { icon: "⚙️", color: "#4F7CFF", title: "그룹 관리하기", desc: "멤버 추가/삭제, 초대 링크·QR코드 공유, 그룹 알림 끄기, 피드백 보내기까지 할 수 있어요." },
+                { icon: "🔔", color: "#22C55E", title: "최근 활동 확인하기", desc: "종 아이콘을 누르면 그룹 안에서 누가 무엇을 추가했는지 확인할 수 있어요." },
+                { icon: "🌗", color: "#FFB020", title: "테마 설정하기", desc: "하단 탭바 \"설정\"에서 라이트/다크/시스템 테마를 고르고, 그룹별 내 프로필도 확인해요." },
+              ],
+            },
+          ].map((section) => (
+            <div key={section.key} style={{ marginBottom: 18 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  marginBottom: 10,
+                  padding: "5px 14px",
+                  borderRadius: 999,
+                  background: section.gradient,
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {section.title}
+              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {section.items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "0.5px solid var(--border)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: "var(--surface-1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        fontSize: 14,
+                      }}
+                    >
+                      {item.icon}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 2px", color: item.color }}>{item.title}</p>
+                      <p style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   function renderBottomTabBar(activeKey) {
     const tabItemStyle = (isActive) => ({
       flex: 1,
@@ -2342,123 +2466,7 @@ export default function GroupApp() {
         </div>
       )}
 
-      {guideOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10,
-          }}
-          onClick={() => setGuideOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--surface-2)",
-              borderRadius: 16,
-              padding: "1.25rem 1.4rem",
-              width: 340,
-              maxWidth: "90vw",
-              maxHeight: "85vh",
-              overflowY: "auto",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <p style={{ fontWeight: 700, fontSize: 17, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#EAF0FF", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                  <Info size={16} color="#4F7CFF" />
-                </span>
-                사용 가이드
-              </p>
-              <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setGuideOpen(false)} />
-            </div>
-
-            {[
-              {
-                key: "start",
-                title: "① 시작하기",
-                gradient: "linear-gradient(90deg, #4F7CFF, #22C55E)",
-                items: [
-                  { icon: "🔗", color: "#4F7CFF", title: "초대 링크로 접속하기", desc: "그룹장이 보내준 링크를 누르면 바로 그룹 화면으로 들어가요. 회원가입이나 앱 설치는 필요 없어요." },
-                  { icon: "👤", color: "#22C55E", title: "내 이름 선택하기", desc: "\"당신은 누구인가요?\" 화면에서 구성원 목록 중 본인 이름을 선택해요." },
-                  { icon: "✨", color: "#FFB020", title: "(그룹장이라면) 새 그룹 만들기", desc: "가족 / 회사·팀 / 학급 / 직접 만들기 중 원하는 종류를 고르고, 그룹 이름을 입력하면 끝!" },
-                  { icon: "🔔", color: "#EC4899", title: "알림 켜기", desc: "화면 위 \"알림받기\" 배너를 누르면, 새 일정이 올라올 때마다 알림을 받을 수 있어요." },
-                ],
-              },
-              {
-                key: "use",
-                title: "② 사용 방법",
-                gradient: "linear-gradient(90deg, #8B5CF6, #EC4899)",
-                items: [
-                  { icon: "✅", color: "#4F7CFF", title: "오늘 할일 확인하고 체크하기", desc: "홈 화면에서 오늘 할일과 공지를 보고 체크박스로 완료 표시를 해요. 못 끝낸 일은 다음 날로 넘길 수 있어요." },
-                  { icon: "➕", color: "#22C55E", title: "일정 추가하기", desc: "제목, 시간, 담당자, 색상, 장소, 사진까지 넣고 \"전체에게 공지\" 또는 \"나만 보기\"로 공개 범위를 정해요." },
-                  { icon: "📅", color: "#FFB020", title: "전체 캘린더 보기", desc: "월별 달력에서 날짜마다 컬러 점으로 일정과 메모를 한눈에 확인해요." },
-                  { icon: "📝", color: "#EC4899", title: "메모 남기기", desc: "체크박스 없는 자유 메모를 캘린더에 색깔까지 정해서 남길 수 있어요." },
-                  { icon: "📌", color: "#8B5CF6", title: "공유 일정 / 공유 메모 / 오늘 할일 메뉴", desc: "그룹 화면 상단 3개 메뉴에서 각 항목이 몇 건인지 바로 확인하고 이동해요." },
-                  { icon: "⚙️", color: "#4F7CFF", title: "그룹 관리하기", desc: "멤버 추가/삭제, 초대 링크·QR코드 공유, 그룹 알림 끄기, 피드백 보내기까지 할 수 있어요." },
-                  { icon: "🔔", color: "#22C55E", title: "최근 활동 확인하기", desc: "종 아이콘을 누르면 그룹 안에서 누가 무엇을 추가했는지 확인할 수 있어요." },
-                  { icon: "🌗", color: "#FFB020", title: "테마 설정하기", desc: "하단 탭바 \"설정\"에서 라이트/다크/시스템 테마를 고르고, 그룹별 내 프로필도 확인해요." },
-                ],
-              },
-            ].map((section) => (
-              <div key={section.key} style={{ marginBottom: 18 }}>
-                <span
-                  style={{
-                    display: "inline-block",
-                    marginBottom: 10,
-                    padding: "5px 14px",
-                    borderRadius: 999,
-                    background: section.gradient,
-                    color: "#fff",
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
-                >
-                  {section.title}
-                </span>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {section.items.map((item, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: "flex",
-                        gap: 10,
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "0.5px solid var(--border)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: "50%",
-                          background: "var(--surface-1)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                          fontSize: 14,
-                        }}
-                      >
-                        {item.icon}
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 2px", color: item.color }}>{item.title}</p>
-                        <p style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>{item.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {renderGuideModal()}
       </>
     );
   }
@@ -3780,6 +3788,27 @@ export default function GroupApp() {
                 <span style={{ flex: 1, fontSize: 15 }}>피드백 남기기</span>
                 <ChevronRight size={18} color="var(--text-muted)" />
               </div>
+              <div
+                onClick={() => {
+                  setGroupSettingsOpen(false);
+                  setGuideOpen(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "0.5px solid var(--border)",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#EAF0FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Info size={17} color="#4F7CFF" />
+                </div>
+                <span style={{ flex: 1, fontSize: 15 }}>사용 가이드</span>
+                <ChevronRight size={18} color="var(--text-muted)" />
+              </div>
             </div>
 
             <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px" }}>구성원 ({draftMembers.length}명)</p>
@@ -3940,6 +3969,8 @@ export default function GroupApp() {
           </div>
         </div>
       )}
+
+      {renderGuideModal()}
 
       {inviteScreenOpen && (
         <div
