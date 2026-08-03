@@ -2514,9 +2514,12 @@ export default function GroupApp() {
           </div>
         </div>
 
-        {pushSupported && !isPushSubscribed && (
+        {pushSupported && (
           <div
-            onClick={subscribeToPush}
+            onClick={() => {
+              if (pushBusy) return;
+              isPushSubscribed ? unsubscribeFromPush() : subscribeToPush();
+            }}
             style={{
               display: "flex",
               alignItems: "flex-start",
@@ -2525,15 +2528,19 @@ export default function GroupApp() {
               padding: "8px 10px",
               borderRadius: 8,
               border: `0.5px solid ${active.accent}`,
-              background: active.accentBg,
-              color: active.accent,
+              background: isPushSubscribed ? active.accent : active.accentBg,
+              color: isPushSubscribed ? "#fff" : active.accent,
               cursor: pushBusy ? "default" : "pointer",
               opacity: pushBusy ? 0.6 : 1,
             }}
           >
             <Bell size={18} style={{ flexShrink: 0, marginTop: 2 }} />
             <span style={{ fontSize: 14 }}>
-              {pushBusy ? "설정 중..." : "새 일정 알림을 받으려면 알림받기를 클릭해 주세요"}
+              {pushBusy
+                ? "설정 중..."
+                : isPushSubscribed
+                ? "알림이 켜져 있어요 (끄려면 클릭)"
+                : "새 일정 알림을 받으려면 알림받기를 클릭해 주세요"}
             </span>
           </div>
         )}
