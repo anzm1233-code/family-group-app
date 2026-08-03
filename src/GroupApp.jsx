@@ -1219,6 +1219,7 @@ export default function GroupApp() {
             maxWidth: "90vw",
             maxHeight: "85vh",
             overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -1427,6 +1428,7 @@ export default function GroupApp() {
             maxWidth: "90vw",
             maxHeight: "85vh",
             overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -2349,6 +2351,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -2891,6 +2894,7 @@ export default function GroupApp() {
                 maxWidth: "90vw",
                 maxHeight: "85vh",
                 overflowY: "auto",
+                WebkitOverflowScrolling: "touch",
               }}
             >
               <p style={{ fontWeight: 600, fontSize: 17, margin: "0 0 8px" }}>당신은 누구인가요?</p>
@@ -3464,6 +3468,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -3520,6 +3525,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -3570,6 +3576,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -3630,6 +3637,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -3700,6 +3708,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -3996,6 +4005,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
               textAlign: "center",
             }}
           >
@@ -4086,6 +4096,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -4169,6 +4180,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -4275,6 +4287,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -4498,6 +4511,7 @@ export default function GroupApp() {
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
