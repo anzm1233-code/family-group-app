@@ -2105,6 +2105,15 @@ export default function GroupApp() {
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {todayScheduleItems.slice(0, 4).map(({ groupId, task }) => (
                 <div key={`${groupId}-${task.id}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: task.color || "#fff",
+                      flexShrink: 0,
+                    }}
+                  />
                   {task.due.includes(" ") && (
                     <span style={{ opacity: 0.85, minWidth: 42 }}>{task.due.split(" ")[1]}</span>
                   )}
@@ -2577,22 +2586,28 @@ export default function GroupApp() {
           {[
             {
               key: "schedule",
-              label: "공유 일정",
+              label: `${now.getMonth() + 1}월 공유 일정`,
               icon: CalendarIcon,
+              color: "#4F7CFF",
+              bg: "#E9F0FF",
               count: active.tasks.filter((t) => !t.note && !t.private).length + active.events.length,
               onClick: () => goToTab("calendar"),
             },
             {
               key: "memo",
-              label: "공유 메모",
+              label: `${now.getMonth() + 1}월 공유 메모`,
               icon: StickyNote,
+              color: "#8B5CF6",
+              bg: "#F1EAFE",
               count: active.tasks.filter((t) => t.note).length,
               onClick: () => setMemoListOpen(true),
             },
             {
               key: "todo",
-              label: "할일",
+              label: "오늘 할일",
               icon: Check,
+              color: "#22C55E",
+              bg: "#E4F9EC",
               count: active.tasks.filter((t) => !t.note && isTaskDueToday(t) && !t.done).length,
               onClick: () => goToTab("home"),
             },
@@ -2610,7 +2625,20 @@ export default function GroupApp() {
                 cursor: "pointer",
               }}
             >
-              <item.icon size={19} color={active.accent} />
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: item.bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <item.icon size={17} color={item.color} />
+              </div>
               <span style={{ flex: 1, fontSize: 15 }}>{item.label}</span>
               <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{item.count}건</span>
               <ChevronRight size={18} color="var(--text-muted)" />
@@ -2740,7 +2768,7 @@ export default function GroupApp() {
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 6, marginBottom: 4 }}>
               <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
-                <Check size={18} /> {todayMonth}월 {today}일 할일 / 공지
+                <Check size={18} color="#22C55E" /> {todayMonth}월 {today}일 할일 / 공지
               </p>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
@@ -2892,7 +2920,7 @@ export default function GroupApp() {
             )}
 
             <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
-              <CalendarIcon size={18} /> 다가오는 일정
+              <CalendarIcon size={18} color="#4F7CFF" /> 다가오는 일정
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {upcomingItems.length === 0 && (
@@ -3497,7 +3525,9 @@ export default function GroupApp() {
                   cursor: "pointer",
                 }}
               >
-                <Share2 size={19} color="var(--accent-primary)" />
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E9F0FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Share2 size={17} color="#4F7CFF" />
+                </div>
                 <span style={{ flex: 1, fontSize: 15 }}>그룹 초대/공유하기</span>
                 <ChevronRight size={18} color="var(--text-muted)" />
               </div>
@@ -3515,7 +3545,9 @@ export default function GroupApp() {
                     opacity: pushBusy ? 0.6 : 1,
                   }}
                 >
-                  <Bell size={19} color="var(--accent-primary)" />
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#FFF4E0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Bell size={17} color="#FFB020" />
+                  </div>
                   <span style={{ flex: 1, fontSize: 15 }}>{pushBusy ? "해제 중..." : "이 그룹 공지 알림 끄기"}</span>
                 </div>
               )}
@@ -3531,7 +3563,9 @@ export default function GroupApp() {
                   cursor: "pointer",
                 }}
               >
-                <StickyNote size={19} color="var(--accent-primary)" />
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#FDEAF3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <StickyNote size={17} color="#EC4899" />
+                </div>
                 <span style={{ flex: 1, fontSize: 15 }}>피드백 남기기</span>
                 <ChevronRight size={18} color="var(--text-muted)" />
               </div>
@@ -3817,7 +3851,10 @@ export default function GroupApp() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <p style={{ fontWeight: 700, fontSize: 17, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                <Bell size={19} /> 알림
+                <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#FFF4E0", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  <Bell size={16} color="#FFB020" />
+                </span>
+                알림
               </p>
               <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={closeActivityScreen} />
             </div>
@@ -3897,7 +3934,10 @@ export default function GroupApp() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <p style={{ fontWeight: 700, fontSize: 17, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                <StickyNote size={19} /> 공유 메모
+                <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#F1EAFE", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  <StickyNote size={16} color="#8B5CF6" />
+                </span>
+                공유 메모
               </p>
               <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setMemoListOpen(false)} />
             </div>
