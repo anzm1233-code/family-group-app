@@ -553,6 +553,9 @@ export default function GroupApp() {
   const selectedAssignee =
     active && active.members.some((m) => m.id === newTaskAssignee) ? newTaskAssignee : active?.members[0]?.id ?? "";
   const myMemberId = activeId && whoAmIMap[activeId] && memberById[whoAmIMap[activeId]] ? whoAmIMap[activeId] : null;
+  // "나만 보기" tasks are only meant for their assignee's eyes — everyone else
+  // should never see them rendered anywhere (lists, calendar dots, counts).
+  const isTaskVisibleToMe = (t) => !t.private || t.assignee === myMemberId;
   const isGroupOwner = !!(activeId && ownedGroups[activeId]);
   const isPushSubscribed = !!(activeId && pushSubscribedGroups[activeId]);
   const pushSupported =
@@ -565,7 +568,7 @@ export default function GroupApp() {
   const upcomingItems = active
     ? [
         ...active.tasks
-          .filter((t) => !t.note && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
+          .filter((t) => !t.note && isTaskVisibleToMe(t) && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
           .map((t) => ({ kind: "task", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
         ...active.events
           .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
@@ -583,8 +586,9 @@ export default function GroupApp() {
           .flatMap((b) => {
             const g = loadGroupCache()[b.id];
             if (!g || !Array.isArray(g.tasks)) return [];
+            const myIdInGroup = whoAmIMap[b.id];
             return g.tasks
-              .filter((t) => !t.note && !t.done && taskMonth(t) === todayMonth && taskDay(t) === today)
+              .filter((t) => !t.note && !t.done && (!t.private || t.assignee === myIdInGroup) && taskMonth(t) === todayMonth && taskDay(t) === today)
               .map((t) => ({ groupId: b.id, groupName: b.name, groupAccent: b.accent, task: t }));
           })
           .sort((a, b) => {
@@ -2180,7 +2184,8 @@ export default function GroupApp() {
   const weeks = getWeeks(viewYear, viewMonth);
   // Events/tasks don't carry a year, so this is scoped to the viewed month only.
   const eventsOnDay = (d) => (active ? active.events.filter((e) => e.date === d) : []);
-  const tasksOnDay = (d) => (active ? active.tasks.filter((t) => taskMonth(t) === viewMonth && taskDay(t) === d) : []);
+  const tasksOnDay = (d) =>
+    active ? active.tasks.filter((t) => isTaskVisibleToMe(t) && taskMonth(t) === viewMonth && taskDay(t) === d) : [];
   const dayEvents = eventsOnDay(selectedDay);
   const dayTasks = tasksOnDay(selectedDay).filter((t) => !t.note);
   const dayMemos = tasksOnDay(selectedDay).filter((t) => t.note);
@@ -2775,7 +2780,7 @@ export default function GroupApp() {
               icon: Check,
               color: "#22C55E",
               bg: "#E4F9EC",
-              count: active.tasks.filter((t) => !t.note && isTaskDueToday(t) && !t.done).length,
+              count: active.tasks.filter((t) => !t.note && isTaskVisibleToMe(t) && isTaskDueToday(t) && !t.done).length,
               onClick: () => goToTab("home"),
             },
           ].map((item) => (
@@ -2972,7 +2977,7 @@ export default function GroupApp() {
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {active.tasks
-                .filter((t) => !t.note && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))))
+                .filter((t) => !t.note && isTaskVisibleToMe(t) && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))))
                 .map((t) => (
                 <div
                   key={t.id}
@@ -3059,7 +3064,7 @@ export default function GroupApp() {
                   </span>
                 </div>
               ))}
-              {active.tasks.filter((t) => !t.note && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t)))).length === 0 && (
+              {active.tasks.filter((t) => !t.note && isTaskVisibleToMe(t) && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t)))).length === 0 && (
                 <div
                   style={{
                     display: "flex",
