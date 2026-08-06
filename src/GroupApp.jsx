@@ -380,6 +380,11 @@ async function sendGroupOp(groupId, op) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(op),
     });
+    // Distinguished from a plain failure so callers can tell "someone else
+    // deleted this group" apart from a transient network/server error —
+    // the two need very different handling (kick back to the list vs. just
+    // retry).
+    if (res.status === 404) return { notFound: true };
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -757,13 +762,35 @@ export default function GroupApp() {
   // authoritative post-op group, local state is reconciled to exactly that —
   // so this never overwrites a concurrent change the way resending a whole
   // local snapshot would (see sendGroupOp).
+  // Someone else deleted this group out from under us — drop it from every
+  // local trace (active list, bookmarks) so it stops looking usable, and
+  // let the existing "그룹이 삭제됐어요" screen take over for whoever's
+  // currently looking at it.
+  function removeDeletedGroupFromClient(groupId) {
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+    setBookmarks((prev) => {
+      const next = prev.filter((b) => b.id !== groupId);
+      saveBookmarks(next);
+      return next;
+    });
+    setGroupLoadError("not_found");
+  }
+
   function runGroupOp(op, applyLocally) {
     const groupId = activeId;
     setGroups((prev) => prev.map((g) => (g.id !== groupId ? g : applyLocally(g))));
     pendingSaveCountRef.current += 1;
     sendGroupOp(groupId, op)
       .then((fresh) => {
-        if (!fresh) return;
+        if (fresh && fresh.notFound) {
+          removeDeletedGroupFromClient(groupId);
+          return;
+        }
+        if (!fresh) {
+          setToast({ message: "저장하지 못했어요. 네트워크를 확인하고 다시 시도해 주세요", undo: null });
+          setTimeout(() => setToast(null), 3000);
+          return;
+        }
         cacheGroup(fresh);
         const withNotify = applyNotifyPrefs([fresh])[0];
         setGroups((prev) => prev.map((g) => (g.id === fresh.id ? withNotify : g)));
@@ -833,7 +860,9 @@ export default function GroupApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the "내 그룹" bookmark list's names/member counts fresh whenever it's shown.
+  // Keep the "내 그룹" bookmark list's names/member counts fresh whenever it's
+  // shown, and drop any bookmark whose group someone else has since
+  // deleted — otherwise it just sits there forever pointing at nothing.
   useEffect(() => {
     if (view !== "groups" || bookmarks.length === 0) return;
     let cancelled = false;
@@ -843,7 +872,7 @@ export default function GroupApp() {
         if (cancelled || !data) return;
         const byId = Object.fromEntries(data.groups.map((g) => [g.id, g]));
         setBookmarks((prev) => {
-          const next = prev.map((b) => (byId[b.id] ? { ...b, ...byId[b.id] } : b));
+          const next = prev.filter((b) => byId[b.id]).map((b) => ({ ...b, ...byId[b.id] }));
           saveBookmarks(next);
           return next;
         });
@@ -866,7 +895,13 @@ export default function GroupApp() {
     const interval = setInterval(() => {
       if (document.hidden || pendingSaveCountRef.current > 0) return;
       fetch(`/api/groups/${groupId}`)
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => {
+          if (res.status === 404) {
+            removeDeletedGroupFromClient(groupId);
+            return null;
+          }
+          return res.ok ? res.json() : null;
+        })
         .then((group) => {
           if (!group || pendingSaveCountRef.current > 0) return;
           cacheGroup(group);
@@ -2103,7 +2138,12 @@ export default function GroupApp() {
             </div>
             <button
               onClick={() => {
-                if (addTask(dueMonth, dueDay)) onClose();
+                if (addTask(dueMonth, dueDay)) {
+                  onClose();
+                } else {
+                  setToast({ message: "할일 또는 공지 내용을 입력해 주세요", undo: null });
+                  setTimeout(() => setToast(null), 2500);
+                }
               }}
               style={{ width: "100%", marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
