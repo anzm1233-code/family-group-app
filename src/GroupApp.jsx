@@ -470,9 +470,13 @@ export default function GroupApp() {
   const [showMemoForm, setShowMemoForm] = useState(false);
   const [newMemoTitle, setNewMemoTitle] = useState("");
   const [newMemoColor, setNewMemoColor] = useState(TASK_COLORS[0]);
+  const [newMemoBroadcast, setNewMemoBroadcast] = useState(false);
+  const [newMemoPrivate, setNewMemoPrivate] = useState(false);
   const [editingMemoId, setEditingMemoId] = useState(null);
   const [editingMemoText, setEditingMemoText] = useState("");
   const [editingMemoColor, setEditingMemoColor] = useState(TASK_COLORS[0]);
+  const [editingMemoBroadcast, setEditingMemoBroadcast] = useState(false);
+  const [editingMemoPrivate, setEditingMemoPrivate] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskTime, setNewTaskTime] = useState("");
   const [newTaskColor, setNewTaskColor] = useState(TASK_COLORS[0]);
@@ -1842,9 +1846,9 @@ export default function GroupApp() {
       title: newMemoTitle,
       due: `${dueMonth}/${dueDay}`,
       done: false,
-      assignee: null,
-      broadcast: false,
-      private: false,
+      assignee: newMemoPrivate ? myMemberId : null,
+      broadcast: newMemoBroadcast,
+      private: newMemoPrivate,
       note: true,
       color: newMemoColor,
     };
@@ -1852,6 +1856,8 @@ export default function GroupApp() {
     runGroupOp({ op: "addTask", task: memo, actorName }, (g) => ({ ...g, tasks: [...g.tasks, memo] }));
     setNewMemoTitle("");
     setNewMemoColor(TASK_COLORS[0]);
+    setNewMemoBroadcast(false);
+    setNewMemoPrivate(false);
     return true;
   }
 
@@ -1859,6 +1865,8 @@ export default function GroupApp() {
     setEditingMemoId(memo.id);
     setEditingMemoText(memo.title);
     setEditingMemoColor(memo.color || TASK_COLORS[0]);
+    setEditingMemoBroadcast(!!memo.broadcast);
+    setEditingMemoPrivate(!!memo.private);
   }
 
   function saveMemoEdit() {
@@ -1866,7 +1874,13 @@ export default function GroupApp() {
     const title = editingMemoText.trim();
     setEditingMemoId(null);
     if (!title) return;
-    const patch = { title, color: editingMemoColor };
+    const patch = {
+      title,
+      color: editingMemoColor,
+      broadcast: editingMemoBroadcast,
+      private: editingMemoPrivate,
+      assignee: editingMemoPrivate ? myMemberId : null,
+    };
     runGroupOp(
       { op: "editTask", taskId, patch },
       (g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) })
@@ -2771,7 +2785,7 @@ export default function GroupApp() {
               icon: StickyNote,
               color: "#8B5CF6",
               bg: "#F1EAFE",
-              count: active.tasks.filter((t) => t.note).length,
+              count: active.tasks.filter((t) => t.note && isTaskVisibleToMe(t)).length,
               onClick: () => setMemoListOpen(true),
             },
             {
@@ -3350,6 +3364,38 @@ export default function GroupApp() {
                       ))}
                     </div>
                   )}
+                  {editingMemoId === m.id && (
+                    <div style={{ display: "flex", gap: 12, paddingLeft: 24, flexWrap: "wrap" }}>
+                      <label
+                        style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editingMemoBroadcast}
+                          onChange={(e) => {
+                            setEditingMemoBroadcast(e.target.checked);
+                            if (e.target.checked) setEditingMemoPrivate(false);
+                          }}
+                        />
+                        전체 공지
+                      </label>
+                      <label
+                        style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editingMemoPrivate}
+                          onChange={(e) => {
+                            setEditingMemoPrivate(e.target.checked);
+                            if (e.target.checked) setEditingMemoBroadcast(false);
+                          }}
+                        />
+                        나만 보기
+                      </label>
+                    </div>
+                  )}
                 </div>
               ))}
               <div style={{ marginTop: 10 }}>
@@ -3399,7 +3445,7 @@ export default function GroupApp() {
                         추가
                       </button>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                       <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>색상</span>
                       {TASK_COLORS.map((c) => (
                         <div
@@ -3416,6 +3462,30 @@ export default function GroupApp() {
                           }}
                         />
                       ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 16 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+                        <input
+                          type="checkbox"
+                          checked={newMemoBroadcast}
+                          onChange={(e) => {
+                            setNewMemoBroadcast(e.target.checked);
+                            if (e.target.checked) setNewMemoPrivate(false);
+                          }}
+                        />
+                        전체에게 공지로 보내기
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+                        <input
+                          type="checkbox"
+                          checked={newMemoPrivate}
+                          onChange={(e) => {
+                            setNewMemoPrivate(e.target.checked);
+                            if (e.target.checked) setNewMemoBroadcast(false);
+                          }}
+                        />
+                        나만 보기
+                      </label>
                     </div>
                   </div>
                 )}
@@ -4198,13 +4268,13 @@ export default function GroupApp() {
               <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setMemoListOpen(false)} />
             </div>
 
-            {active.tasks.filter((t) => t.note).length === 0 && (
+            {active.tasks.filter((t) => t.note && isTaskVisibleToMe(t)).length === 0 && (
               <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>아직 메모가 없어요.</p>
             )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {active.tasks
-                .filter((t) => t.note)
+                .filter((t) => t.note && isTaskVisibleToMe(t))
                 .sort((a, b) => taskMonth(a) - taskMonth(b) || taskDay(a) - taskDay(b))
                 .map((m) => (
                   <div
@@ -4260,6 +4330,38 @@ export default function GroupApp() {
                             }}
                           />
                         ))}
+                      </div>
+                    )}
+                    {editingMemoId === m.id && (
+                      <div style={{ display: "flex", gap: 12, paddingLeft: 48, flexWrap: "wrap" }}>
+                        <label
+                          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editingMemoBroadcast}
+                            onChange={(e) => {
+                              setEditingMemoBroadcast(e.target.checked);
+                              if (e.target.checked) setEditingMemoPrivate(false);
+                            }}
+                          />
+                          전체 공지
+                        </label>
+                        <label
+                          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editingMemoPrivate}
+                            onChange={(e) => {
+                              setEditingMemoPrivate(e.target.checked);
+                              if (e.target.checked) setEditingMemoBroadcast(false);
+                            }}
+                          />
+                          나만 보기
+                        </label>
                       </div>
                     )}
                   </div>
