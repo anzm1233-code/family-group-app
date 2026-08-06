@@ -642,12 +642,8 @@ export default function GroupApp() {
   function pickWhoAmIFromPrompt(memberId) {
     setWhoAmI(memberId);
     dismissWhoAmIPrompt();
-    // Opportunistically record which member this already-owner device is,
-    // so ownership can later be recovered on a different device by picking
-    // the same name — first-claim-wins, harmless if already set.
-    if (ownedGroups[activeId] && !groups.find((g) => g.id === activeId)?.ownerMemberId) {
-      runGroupOp({ op: "claimOwner", memberId }, (g) => ({ ...g, ownerMemberId: g.ownerMemberId || memberId }));
-    }
+    // ownerMemberId back-fill for an already-owner device is handled by the
+    // effect above once myMemberId resolves from this pick.
   }
 
   const shouldShowWhoAmIPrompt =
@@ -814,6 +810,21 @@ export default function GroupApp() {
     setThemeOverride(value);
     saveThemeOverride(value);
   }
+
+  // Opportunistically back-fills ownerMemberId for groups where this device
+  // was already locally flagged as owner before that concept existed
+  // server-side (or before the owner's whoAmI pick happened to trigger it) —
+  // runs whenever the active group and identity are both already resolved,
+  // not just at the moment of picking a name from the prompt. This is what
+  // makes ownership recoverable later even for groups that predate this
+  // feature or whose owner already picked their name in the past.
+  useEffect(() => {
+    if (!activeId || !myMemberId) return;
+    if (!ownedGroups[activeId]) return;
+    if (active?.ownerMemberId) return;
+    runGroupOp({ op: "claimOwner", memberId: myMemberId }, (g) => ({ ...g, ownerMemberId: g.ownerMemberId || myMemberId }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, myMemberId, active?.ownerMemberId, ownedGroups[activeId]]);
 
   // Deep link support: a page load on /g/:id fetches that group directly,
   // with no login — the link itself is the access control.
