@@ -645,16 +645,6 @@ export default function GroupApp() {
   const shouldShowWhoAmIPrompt =
     view === "app" && !!active && active.members.length > 0 && !myMemberId && !whoAmIPromptDismissed[activeId];
 
-  // Ownership is only ever recorded automatically at the moment a group is
-  // created, so every group made before that existed - and any device other
-  // than the one that originally created a group - has no owner on record.
-  // Lets the current device claim it, same trust level as everything else
-  // here (nothing actually verifies the claim).
-  function claimGroupOwnership() {
-    markGroupOwned(activeId);
-    setOwnedGroups((prev) => ({ ...prev, [activeId]: true }));
-  }
-
   async function subscribeToPush() {
     if (!pushSupported || !activeId) return;
     // iOS Safari only supports Web Push for a site that's been added to the
@@ -3976,18 +3966,6 @@ export default function GroupApp() {
             <button onClick={saveGroupSettings} style={{ width: "100%" }}>
               수정 완료
             </button>
-
-            {!isGroupOwner && (
-              <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", margin: "16px 0 0" }}>
-                이 그룹을 만드셨나요?{" "}
-                <span
-                  onClick={claimGroupOwnership}
-                  style={{ color: "var(--text-secondary)", textDecoration: "underline", cursor: "pointer" }}
-                >
-                  소유자로 지정하기
-                </span>
-              </p>
-            )}
 
             {isGroupOwner && (
             <div style={{ borderTop: "0.5px solid var(--border)", marginTop: 16, paddingTop: 12 }}>
