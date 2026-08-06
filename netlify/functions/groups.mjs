@@ -23,9 +23,11 @@ async function ensureSchema(pool) {
         members JSONB NOT NULL DEFAULT '[]',
         tasks JSONB NOT NULL DEFAULT '[]',
         events JSONB NOT NULL DEFAULT '[]',
+        owner_member_id TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
+      );
+      ALTER TABLE groups ADD COLUMN IF NOT EXISTS owner_member_id TEXT;
     `
       )
       .then(() => ensurePushSchema(pool))
@@ -48,6 +50,7 @@ function rowToGroup(row) {
     members: row.members,
     tasks: row.tasks,
     events: row.events,
+    ownerMemberId: row.owner_member_id,
   };
 }
 
@@ -68,15 +71,16 @@ async function createGroup(pool, body) {
   const accent = typeof body.accent === "string" ? body.accent : "#993556";
   const accentBg = typeof body.accentBg === "string" ? body.accentBg : "#FBEAF0";
   const members = Array.isArray(body.members) ? body.members : [];
+  const ownerMemberId = typeof body.ownerMemberId === "string" && body.ownerMemberId ? body.ownerMemberId : null;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const id = generateId();
     try {
       const { rows } = await pool.query(
-        `INSERT INTO groups (id, kind, name, accent, accent_bg, members, tasks, events)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, '[]'::jsonb, '[]'::jsonb)
+        `INSERT INTO groups (id, kind, name, accent, accent_bg, members, tasks, events, owner_member_id)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, '[]'::jsonb, '[]'::jsonb, $7)
          RETURNING *`,
-        [id, kind, name, accent, accentBg, JSON.stringify(members)]
+        [id, kind, name, accent, accentBg, JSON.stringify(members), ownerMemberId]
       );
       return rowToGroup(rows[0]);
     } catch (err) {
@@ -136,8 +140,20 @@ async function applyGroupOp(pool, id, body) {
     }
 
     let { name, members, tasks, events } = existing;
+    let ownerMemberId = existing.owner_member_id;
 
     switch (body.op) {
+      // First-claim-wins: only takes effect if nobody has claimed ownership
+      // of this group yet. Lets a device that already thinks it's the owner
+      // (see OWNED_GROUPS_KEY client-side) record which member that
+      // corresponds to, so ownership can later be recovered on a different
+      // device by picking the same member identity — same trust level as
+      // everything else here, not tamper-proof.
+      case "claimOwner": {
+        if (!body.memberId || typeof body.memberId !== "string") throw new BadOpError("memberId required");
+        if (!ownerMemberId) ownerMemberId = body.memberId;
+        break;
+      }
       case "addTask": {
         if (!body.task || typeof body.task !== "object") throw new BadOpError("task required");
         tasks = [...tasks, body.task];
@@ -186,10 +202,10 @@ async function applyGroupOp(pool, id, body) {
 
     const { rows: updatedRows } = await client.query(
       `UPDATE groups
-       SET name = $2, members = $3::jsonb, tasks = $4::jsonb, events = $5::jsonb, updated_at = now()
+       SET name = $2, members = $3::jsonb, tasks = $4::jsonb, events = $5::jsonb, owner_member_id = $6, updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [id, name, JSON.stringify(members), JSON.stringify(tasks), JSON.stringify(events)]
+      [id, name, JSON.stringify(members), JSON.stringify(tasks), JSON.stringify(events), ownerMemberId]
     );
     await client.query("COMMIT");
     return rowToGroup(updatedRows[0]);

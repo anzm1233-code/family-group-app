@@ -462,6 +462,7 @@ export default function GroupApp() {
   const [createChoice, setCreateChoice] = useState(null);
   const [createStep, setCreateStep] = useState("choose");
   const [newName, setNewName] = useState("");
+  const [newOwnerName, setNewOwnerName] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState(null);
 
@@ -560,7 +561,8 @@ export default function GroupApp() {
   // "나만 보기" tasks are only meant for their assignee's eyes — everyone else
   // should never see them rendered anywhere (lists, calendar dots, counts).
   const isTaskVisibleToMe = (t) => !t.private || t.assignee === myMemberId;
-  const isGroupOwner = !!(activeId && ownedGroups[activeId]);
+  const isGroupOwner =
+    !!(activeId && ownedGroups[activeId]) || (!!myMemberId && !!active?.ownerMemberId && myMemberId === active.ownerMemberId);
   const isPushSubscribed = !!(activeId && pushSubscribedGroups[activeId]);
   const pushSupported =
     typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
@@ -640,6 +642,12 @@ export default function GroupApp() {
   function pickWhoAmIFromPrompt(memberId) {
     setWhoAmI(memberId);
     dismissWhoAmIPrompt();
+    // Opportunistically record which member this already-owner device is,
+    // so ownership can later be recovered on a different device by picking
+    // the same name — first-claim-wins, harmless if already set.
+    if (ownedGroups[activeId] && !groups.find((g) => g.id === activeId)?.ownerMemberId) {
+      runGroupOp({ op: "claimOwner", memberId }, (g) => ({ ...g, ownerMemberId: g.ownerMemberId || memberId }));
+    }
   }
 
   const shouldShowWhoAmIPrompt =
@@ -960,11 +968,29 @@ export default function GroupApp() {
     pushHistory();
     setCreateChoice(key);
     setNewName(QUICK_START[key].defaultName);
+    setNewOwnerName("");
     setCreateStep("name");
   }
 
   async function confirmCreate() {
     const q = QUICK_START[createChoice];
+    // If the creator gives their own name up front, skip the "who are you"
+    // step entirely: fold them into the member list right here and mark
+    // them the owner, instead of making them rename a placeholder member
+    // (or pick themselves from the prompt) after the fact.
+    const ownerName = newOwnerName.trim();
+    let members = q.members;
+    let ownerMemberId = null;
+    if (ownerName) {
+      if (createChoice === "custom") {
+        members = [{ id: "me", name: ownerName, tier: 0 }];
+        ownerMemberId = "me";
+      } else {
+        const newMember = { id: "m" + generateLocalId(), name: ownerName, tier: 0 };
+        members = [...q.members, newMember];
+        ownerMemberId = newMember.id;
+      }
+    }
     setCreateBusy(true);
     setCreateError(null);
     try {
@@ -976,7 +1002,8 @@ export default function GroupApp() {
           name: newName || q.defaultName || "새 그룹",
           accent: q.accent,
           accentBg: q.accentBg,
-          members: q.members,
+          members,
+          ownerMemberId,
         }),
       });
       if (!res.ok) throw new Error("create_failed");
@@ -984,6 +1011,13 @@ export default function GroupApp() {
       cacheGroup(group);
       markGroupOwned(group.id);
       setOwnedGroups((prev) => ({ ...prev, [group.id]: true }));
+      if (ownerMemberId) {
+        setWhoAmIMap((prev) => {
+          const next = { ...prev, [group.id]: ownerMemberId };
+          saveWhoAmIMap(next);
+          return next;
+        });
+      }
       setGroups((prev) => [...prev, applyNotifyPrefs([group])[0]]);
       setBookmarks((prev) => {
         const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
@@ -2553,6 +2587,13 @@ export default function GroupApp() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="그룹 이름을 입력하세요"
+                style={{ width: "100%", marginBottom: 16 }}
+              />
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 6px" }}>내 이름 (그룹장)</p>
+              <input
+                value={newOwnerName}
+                onChange={(e) => setNewOwnerName(e.target.value)}
+                placeholder="예: 김민수 (입력하면 자동으로 나로 지정돼요)"
                 style={{ width: "100%", marginBottom: 16 }}
               />
               <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 16px" }}>
