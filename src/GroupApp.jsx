@@ -478,6 +478,7 @@ export default function GroupApp() {
   const [newMemoColor, setNewMemoColor] = useState(TASK_COLORS[0]);
   const [newMemoBroadcast, setNewMemoBroadcast] = useState(false);
   const [newMemoPrivate, setNewMemoPrivate] = useState(false);
+  const [newMemoPhotos, setNewMemoPhotos] = useState([]);
   const [editingMemoId, setEditingMemoId] = useState(null);
   const [editingMemoText, setEditingMemoText] = useState("");
   const [editingMemoColor, setEditingMemoColor] = useState(TASK_COLORS[0]);
@@ -525,6 +526,7 @@ export default function GroupApp() {
   const [appSettingsOpen, setAppSettingsOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [memoListOpen, setMemoListOpen] = useState(false);
+  const [photoViewer, setPhotoViewer] = useState(null); // { photos, index }
   const [themeOverride, setThemeOverride] = useState(() => loadThemeOverride());
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
@@ -1262,6 +1264,97 @@ export default function GroupApp() {
     }
   }
 
+  // Fullscreen photo viewer — opened from any photo thumbnail (task or memo,
+  // saved or still-staged-pre-save) with the full set it belongs to and
+  // which one was clicked, so ◀/▶ (or a swipe) steps through the rest.
+  function openPhotoViewer(photos, index) {
+    if (!photos || photos.length === 0) return;
+    setPhotoViewer({ photos, index });
+  }
+
+  function closePhotoViewer() {
+    setPhotoViewer(null);
+  }
+
+  function showNextPhoto() {
+    setPhotoViewer((prev) => (prev ? { ...prev, index: (prev.index + 1) % prev.photos.length } : prev));
+  }
+
+  function showPrevPhoto() {
+    setPhotoViewer((prev) => (prev ? { ...prev, index: (prev.index - 1 + prev.photos.length) % prev.photos.length } : prev));
+  }
+
+  function renderPhotoViewer() {
+    if (!photoViewer) return null;
+    const { photos, index } = photoViewer;
+    const multi = photos.length > 1;
+    let touchStartX = null;
+    return (
+      <div
+        onClick={closePhotoViewer}
+        onTouchStart={(e) => {
+          touchStartX = e.touches[0].clientX;
+        }}
+        onTouchEnd={(e) => {
+          if (touchStartX === null) return;
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          if (Math.abs(dx) > 40) (dx < 0 ? showNextPhoto : showPrevPhoto)();
+          touchStartX = null;
+        }}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.92)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 30,
+        }}
+      >
+        <X
+          size={26}
+          color="#fff"
+          style={{ position: "absolute", top: 18, right: 18, cursor: "pointer" }}
+          onClick={closePhotoViewer}
+        />
+        {multi && (
+          <p style={{ position: "absolute", top: 20, left: 0, right: 0, textAlign: "center", color: "#fff", fontSize: 14, margin: 0, pointerEvents: "none" }}>
+            {index + 1} / {photos.length}
+          </p>
+        )}
+        {multi && (
+          <ChevronLeft
+            size={34}
+            color="#fff"
+            style={{ position: "absolute", left: 6, cursor: "pointer", padding: 8 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              showPrevPhoto();
+            }}
+          />
+        )}
+        <img
+          src={photos[index]}
+          alt=""
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxWidth: "92vw", maxHeight: "82vh", objectFit: "contain", borderRadius: 8 }}
+        />
+        {multi && (
+          <ChevronRight
+            size={34}
+            color="#fff"
+            style={{ position: "absolute", right: 6, cursor: "pointer", padding: 8 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              showNextPhoto();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
   // Shared feedback modal — rendered from both the group-list screen and the
   // group detail screen (see call sites), so it's reachable from anywhere.
   // Public to anyone using the app (no login exists to gate it with): shows
@@ -1921,6 +2014,7 @@ export default function GroupApp() {
       private: newMemoPrivate,
       note: true,
       color: newMemoColor,
+      photos: newMemoPhotos,
     };
     const actorName = myMemberId ? memberById[myMemberId]?.name : null;
     runGroupOp({ op: "addTask", task: memo, actorName }, (g) => ({ ...g, tasks: [...g.tasks, memo] }));
@@ -1928,7 +2022,29 @@ export default function GroupApp() {
     setNewMemoColor(TASK_COLORS[0]);
     setNewMemoBroadcast(false);
     setNewMemoPrivate(false);
+    setNewMemoPhotos([]);
     return true;
+  }
+
+  // Photos on an existing memo save immediately (no staged draft + separate
+  // "save" step like tasks have) because memo edits already autosave on
+  // blur — routing photo adds through that same blur-triggered path would
+  // race the native file picker, which blurs the title input the moment it
+  // opens and can fire the save before a photo is even chosen.
+  function addPhotoToMemo(memo, dataUrl) {
+    const photos = [...(memo.photos || []), dataUrl];
+    runGroupOp(
+      { op: "editTask", taskId: memo.id, patch: { photos } },
+      (g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === memo.id ? { ...t, photos } : t)) })
+    );
+  }
+
+  function removePhotoFromMemo(memo, index) {
+    const photos = (memo.photos || []).filter((_, i) => i !== index);
+    runGroupOp(
+      { op: "editTask", taskId: memo.id, patch: { photos } },
+      (g) => ({ ...g, tasks: g.tasks.map((t) => (t.id === memo.id ? { ...t, photos } : t)) })
+    );
   }
 
   function startEditingMemo(memo) {
@@ -2049,7 +2165,8 @@ export default function GroupApp() {
                   <img
                     src={src}
                     alt=""
-                    style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)" }}
+                    onClick={() => openPhotoViewer(newTaskPhotos, idx)}
+                    style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)", cursor: "pointer" }}
                   />
                   <div
                     onClick={() => setNewTaskPhotos((prev) => prev.filter((_, i) => i !== idx))}
@@ -2167,6 +2284,45 @@ export default function GroupApp() {
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  const newMemoPhotoInputRef = useRef(null);
+
+  function handleNewMemoPhotoFileChange(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setNewMemoPhotos((prev) => [...prev, reader.result]);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Editing an existing memo's photos saves immediately (see addPhotoToMemo),
+  // so this only needs to remember which memo the file picker was opened
+  // for — editingMemoId may already be cleared by the time the file is read
+  // (the native picker blurs the title input, which autosaves the rest of
+  // the edit and closes edit mode) but that doesn't affect this.
+  const editingMemoPhotoInputRef = useRef(null);
+  const editingMemoPhotoTargetRef = useRef(null);
+
+  function handleEditingMemoPhotoClick(memo) {
+    editingMemoPhotoTargetRef.current = memo;
+    editingMemoPhotoInputRef.current?.click();
+  }
+
+  function handleEditingMemoPhotoFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    const memo = editingMemoPhotoTargetRef.current;
+    if (!file || !memo) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      addPhotoToMemo(memo, reader.result);
+    };
+    reader.readAsDataURL(file);
   }
 
   function from24Hour(hhmm) {
@@ -2564,6 +2720,7 @@ export default function GroupApp() {
       )}
 
       {renderGuideModal()}
+      {renderPhotoViewer()}
       </>
     );
   }
@@ -3446,6 +3603,60 @@ export default function GroupApp() {
                       ))}
                     </div>
                   )}
+                  {((m.photos && m.photos.length > 0) || editingMemoId === m.id) && (
+                    <div style={{ display: "flex", gap: 6, paddingLeft: 24, flexWrap: "wrap" }}>
+                      {(m.photos || []).map((src, idx) => (
+                        <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
+                          <img
+                            src={src}
+                            alt=""
+                            onClick={() => openPhotoViewer(m.photos, idx)}
+                            style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)", cursor: "pointer" }}
+                          />
+                          {editingMemoId === m.id && (
+                            <div
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => removePhotoFromMemo(m, idx)}
+                              style={{
+                                position: "absolute",
+                                top: -5,
+                                right: -5,
+                                width: 15,
+                                height: 15,
+                                borderRadius: "50%",
+                                background: "var(--text-primary)",
+                                color: "var(--surface-2)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <X size={11} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {editingMemoId === m.id && (
+                        <div
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleEditingMemoPhotoClick(m)}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 6,
+                            border: "1px dashed var(--border-strong)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Plus size={17} color="var(--text-muted)" />
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {editingMemoId === m.id && (
                     <div style={{ display: "flex", gap: 12, paddingLeft: 24, flexWrap: "wrap" }}>
                       <label
@@ -3545,6 +3756,52 @@ export default function GroupApp() {
                         />
                       ))}
                     </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                      {newMemoPhotos.map((src, idx) => (
+                        <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
+                          <img
+                            src={src}
+                            alt=""
+                            onClick={() => openPhotoViewer(newMemoPhotos, idx)}
+                            style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)", cursor: "pointer" }}
+                          />
+                          <div
+                            onClick={() => setNewMemoPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                            style={{
+                              position: "absolute",
+                              top: -5,
+                              right: -5,
+                              width: 15,
+                              height: 15,
+                              borderRadius: "50%",
+                              background: "var(--text-primary)",
+                              color: "var(--surface-2)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <X size={11} />
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => newMemoPhotoInputRef.current?.click()}
+                        style={{
+                          fontSize: 14,
+                          padding: "6px 10px",
+                          background: "transparent",
+                          border: "0.5px dashed var(--border-strong)",
+                          color: "var(--text-secondary)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Plus size={17} /> 사진 추가
+                      </button>
+                    </div>
                     <div style={{ display: "flex", gap: 16 }}>
                       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
                         <input
@@ -3600,6 +3857,23 @@ export default function GroupApp() {
         multiple
         style={{ display: "none" }}
         onChange={handleNewTaskPhotoFileChange}
+      />
+
+      <input
+        ref={newMemoPhotoInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: "none" }}
+        onChange={handleNewMemoPhotoFileChange}
+      />
+
+      <input
+        ref={editingMemoPhotoInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={handleEditingMemoPhotoFileChange}
       />
 
       {timePickerOpen && (
@@ -4126,6 +4400,7 @@ export default function GroupApp() {
       )}
 
       {renderGuideModal()}
+      {renderPhotoViewer()}
 
       {inviteScreenOpen && (
         <div
@@ -4402,6 +4677,60 @@ export default function GroupApp() {
                         ))}
                       </div>
                     )}
+                    {((m.photos && m.photos.length > 0) || editingMemoId === m.id) && (
+                      <div style={{ display: "flex", gap: 6, paddingLeft: 48, flexWrap: "wrap" }}>
+                        {(m.photos || []).map((src, idx) => (
+                          <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
+                            <img
+                              src={src}
+                              alt=""
+                              onClick={() => openPhotoViewer(m.photos, idx)}
+                              style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)", cursor: "pointer" }}
+                            />
+                            {editingMemoId === m.id && (
+                              <div
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => removePhotoFromMemo(m, idx)}
+                                style={{
+                                  position: "absolute",
+                                  top: -5,
+                                  right: -5,
+                                  width: 15,
+                                  height: 15,
+                                  borderRadius: "50%",
+                                  background: "var(--text-primary)",
+                                  color: "var(--surface-2)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <X size={11} />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {editingMemoId === m.id && (
+                          <div
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleEditingMemoPhotoClick(m)}
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 6,
+                              border: "1px dashed var(--border-strong)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Plus size={17} color="var(--text-muted)" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {editingMemoId === m.id && (
                       <div style={{ display: "flex", gap: 12, paddingLeft: 48, flexWrap: "wrap" }}>
                         <label
@@ -4609,7 +4938,8 @@ export default function GroupApp() {
                     key={idx}
                     src={src}
                     alt=""
-                    style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover", border: "0.5px solid var(--border)" }}
+                    onClick={() => openPhotoViewer(draftPhotos, idx)}
+                    style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover", border: "0.5px solid var(--border)", cursor: "pointer" }}
                   />
                 ))}
                 <div
