@@ -835,6 +835,19 @@ export default function GroupApp() {
     else document.documentElement.dataset.theme = themeOverride;
   }, [themeOverride]);
 
+  // Registering the service worker up front (not just when someone opts
+  // into push) is what makes Chrome/Android treat this as a real
+  // installable PWA — with the manifest but no active service worker,
+  // "홈 화면에 추가" only creates a plain bookmark shortcut instead of a
+  // standalone app. Registration alone requests no permissions and starts
+  // no subscription; subscribeToPush() re-registers the same URL later,
+  // which is a harmless no-op against the existing registration.
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
+
   function chooseTheme(value) {
     setThemeOverride(value);
     saveThemeOverride(value);

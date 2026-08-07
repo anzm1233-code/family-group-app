@@ -1,0 +1,14 @@
+{
+  "name": "톡캘린더",
+  "short_name": "톡캘린더",
+  "description": "링크 하나로 시작하는 가족·팀·모임 공유 캘린더",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F4F5",
+  "theme_color": "#4F7CFF",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
