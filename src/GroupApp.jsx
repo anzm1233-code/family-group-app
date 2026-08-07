@@ -947,6 +947,11 @@ export default function GroupApp() {
         { op: "patchMember", memberId, patch: { photo } },
         (g) => ({ ...g, members: g.members.map((m) => (m.id === memberId ? { ...m, photo } : m)) })
       );
+      // Photo changes save immediately (unlike name edits, which wait for
+      // "수정 완료"), so if the 그룹 관리 modal happens to be open with its
+      // own draft copy of the member list, keep that copy in sync too —
+      // otherwise it'd keep showing the old photo until the modal reopens.
+      setDraftMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, photo } : m)));
     };
     reader.readAsDataURL(file);
   }
@@ -2975,29 +2980,10 @@ export default function GroupApp() {
           {active.members.map((m) => (
             <div key={m.id} style={{ textAlign: "center" }}>
               <div
-                onClick={() => handleAvatarClick(m.id)}
-                style={{ position: "relative", width: 32, height: 32, margin: "0 auto", cursor: "pointer" }}
-                title="사진 업로드"
+                onClick={() => m.photo && openPhotoViewer([m.photo], 0)}
+                style={{ width: 32, height: 32, margin: "0 auto", cursor: m.photo ? "pointer" : "default" }}
               >
                 <Avatar tier={m.tier} photo={m.photo} size={32} />
-                <div
-                  style={{
-                    position: "absolute",
-                    right: -2,
-                    bottom: -2,
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    background: "var(--text-primary)",
-                    color: "var(--surface-2)",
-                    border: "1.5px solid var(--surface-2)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Camera size={12} />
-                </div>
               </div>
               <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", margin: "3px 0 0" }}>{m.name}</p>
             </div>
@@ -4278,7 +4264,31 @@ export default function GroupApp() {
                     borderBottom: "0.5px solid var(--border)",
                   }}
                 >
-                  <Avatar tier={m.tier} photo={m.photo} size={28} />
+                  <div
+                    onClick={() => handleAvatarClick(m.id)}
+                    style={{ position: "relative", width: 28, height: 28, flexShrink: 0, cursor: "pointer" }}
+                    title="사진 업로드"
+                  >
+                    <Avatar tier={m.tier} photo={m.photo} size={28} />
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: -2,
+                        bottom: -2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        background: "var(--text-primary)",
+                        color: "var(--surface-2)",
+                        border: "1.5px solid var(--surface-2)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Camera size={10} />
+                    </div>
+                  </div>
                   <input
                     value={m.name}
                     onChange={(e) => renameDraftMember(m.id, e.target.value)}
