@@ -2576,6 +2576,22 @@ export default function GroupApp() {
           <Plus size={19} /> 새 그룹 만들기
         </button>
         <button
+          onClick={() => copyGroupLink(window.location.origin)}
+          style={{
+            width: "100%",
+            marginBottom: 8,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            background: "transparent",
+            border: "0.5px solid var(--border)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <Share2 size={18} /> 내 그룹 목록 주소 복사하기
+        </button>
+        <button
           onClick={openFeedback}
           style={{
             width: "100%",
