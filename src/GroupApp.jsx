@@ -173,16 +173,64 @@ function parseGroupIdFromPath() {
 }
 
 function navigateToGroupUrl(id) {
-  const path = `/g/${id}`;
-  if (window.location.pathname !== path) {
+  const path = withRecoveryParam(`/g/${id}`);
+  if (window.location.pathname + window.location.search !== path) {
     window.history.pushState({ groupId: id }, "", path);
   }
 }
 
 function navigateToGroupsListUrl() {
-  if (window.location.pathname !== "/") {
-    window.history.pushState({}, "", "/");
+  const path = withRecoveryParam("/");
+  if (window.location.pathname + window.location.search !== path) {
+    window.history.pushState({}, "", path);
   }
+}
+
+// Lets "내 그룹" (see BOOKMARKS_KEY below) be recovered in a storage context
+// that's never seen it before — most importantly an iOS "Add to Home
+// Screen" install, which on iOS starts with empty storage completely
+// separate from whatever Safari tab the invite link was opened in, so the
+// bookmark list would otherwise look like every group had vanished. The
+// token is not a password or account: it's just an opaque, unguessable id
+// this browser makes for itself once and keeps re-attaching to its own
+// URLs (see withRecoveryParam), mapped server-side to this browser's last
+// known bookmark list (see recovery.mjs). A fresh storage context that
+// later opens a URL carrying it can ask the server "what did this token
+// have?" and restore its list — see the `recovering` boot sequence in
+// GroupApp() below.
+const RECOVERY_KEY = "familyGroupApp:recoveryToken";
+
+function loadRecoveryToken() {
+  try {
+    return localStorage.getItem(RECOVERY_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveRecoveryToken(token) {
+  try {
+    localStorage.setItem(RECOVERY_KEY, token);
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
+function generateRecoveryToken() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+}
+
+function parseRecoveryTokenFromUrl() {
+  return new URLSearchParams(window.location.search).get("r");
+}
+
+// Appends this browser's recovery token to a same-origin path so it travels
+// into wherever the URL ends up next — most importantly, iOS's "Add to Home
+// Screen" bookmarks whatever URL is in the address bar at the time.
+function withRecoveryParam(path) {
+  const token = loadRecoveryToken();
+  return token ? `${path}${path.includes("?") ? "&" : "?"}r=${encodeURIComponent(token)}` : path;
 }
 
 // Purely a personal shortcut list (per browser, not authoritative) so "내 그룹"
@@ -205,6 +253,23 @@ function saveBookmarks(list) {
   } catch {
     // ignore storage failures (e.g. private mode)
   }
+  syncBookmarksToRecovery(list);
+}
+
+// Best-effort push of the current bookmark list up to this browser's
+// recovery token record — fire-and-forget, same "not guaranteed, just good
+// enough" trust level as the rest of this app. This is what keeps the
+// server's copy fresh enough for a future recovery fetch (see the
+// `recovering` boot sequence in GroupApp()) to actually have something
+// current to hand back.
+function syncBookmarksToRecovery(list) {
+  const token = loadRecoveryToken();
+  if (!token) return;
+  fetch(`/api/recovery/${encodeURIComponent(token)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ groupIds: list.map((b) => b.id) }),
+  }).catch(() => {});
 }
 
 // No login, so "who am I" is just a per-browser, per-group choice — not real
@@ -433,6 +498,27 @@ export default function GroupApp() {
   const initialGroupId = parseGroupIdFromPath();
   const now = new Date();
   const initialBookmarks = loadBookmarks();
+
+  // A token already saved on this device means there's nothing to recover —
+  // carry on as normal. A token that only shows up in the URL (never saved
+  // locally) means this storage context is seeing it for the first time,
+  // which is exactly what an iOS "Add to Home Screen" install looks like on
+  // its very first open: worth asking the server for that token's last
+  // known group list before assuming this is a first-time visitor with an
+  // empty "새 그룹 만들기" screen. Skipped entirely for a direct /g/:id deep
+  // link — that group loads (and re-bookmarks itself) on its own regardless,
+  // and a full-screen recovery takeover would otherwise hijack it away from
+  // the specific group the link pointed at.
+  const [bootRecovery] = useState(() => {
+    const stored = loadRecoveryToken();
+    const fromUrl = parseRecoveryTokenFromUrl();
+    const token = stored || fromUrl || generateRecoveryToken();
+    if (!stored) saveRecoveryToken(token);
+    const needsFetch = !stored && !!fromUrl && initialBookmarks.length === 0 && !initialGroupId;
+    return { token, needsFetch };
+  });
+  const recoveryToken = bootRecovery.token;
+  const [recovering, setRecovering] = useState(bootRecovery.needsFetch);
 
   const [groups, setGroups] = useState(() => {
     if (!initialGroupId) return [];
@@ -848,6 +934,61 @@ export default function GroupApp() {
     }
   }, []);
 
+  // Keeps the recovery token attached to whatever URL is currently showing,
+  // even before the very first in-app navigation (navigateToGroupUrl /
+  // navigateToGroupsListUrl only add it from that point on). Matters because
+  // "Add to Home Screen" can happen at any moment, and it's the address bar's
+  // URL at that moment that gets bookmarked.
+  useEffect(() => {
+    const path = withRecoveryParam(window.location.pathname);
+    if (window.location.pathname + window.location.search !== path) {
+      window.history.replaceState(window.history.state, "", path);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Runs once, only when bootRecovery flagged a token this storage context
+  // has never saved locally (see above) — asks the server what group ids
+  // that token last had, then re-fetches those groups' summaries the same
+  // way the "내 그룹" list-refresh effect does, and restores them as this
+  // device's bookmarks. A brief "불러오는 중..." screen (see the `recovering`
+  // check in the render below) covers this instead of flashing "새 그룹
+  // 만들기" and then swapping to the real list a moment later.
+  useEffect(() => {
+    if (!recovering) return;
+    let cancelled = false;
+    fetch(`/api/recovery/${encodeURIComponent(recoveryToken)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return null;
+        const ids = Array.isArray(data?.groupIds) ? data.groupIds : [];
+        if (ids.length === 0) return null;
+        return fetch(`/api/groups?ids=${ids.join(",")}`).then((res) => (res.ok ? res.json() : null));
+      })
+      .then((groupsData) => {
+        if (cancelled || !groupsData || !Array.isArray(groupsData.groups) || groupsData.groups.length === 0) return;
+        const recovered = groupsData.groups.map((g) => ({
+          id: g.id,
+          kind: g.kind,
+          name: g.name,
+          accent: g.accent,
+          accentBg: g.accentBg,
+          memberCount: g.memberCount,
+        }));
+        setBookmarks(recovered);
+        saveBookmarks(recovered);
+        setView("groups");
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRecovering(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function chooseTheme(value) {
     setThemeOverride(value);
     saveThemeOverride(value);
@@ -1114,15 +1255,17 @@ export default function GroupApp() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  // Unlike copyGroupLink, this is the bare app origin (no /g/:id) — useful
-  // only as a personal bookmark for this device, since a fresh visitor with
-  // no saved groups just lands on an empty "새 그룹 만들기" screen. Sharing
-  // it as an "invite" would show the recipient nothing, so the messaging
-  // here has to say the opposite of copyGroupLink's.
+  // Unlike copyGroupLink, this carries this browser's recovery token (see
+  // withRecoveryParam) instead of a specific group id — opening it anywhere
+  // else (a new browser, or an iOS "Add to Home Screen" install, which
+  // starts with empty storage of its own) restores this device's whole "내
+  // 그룹" list via the recovery lookup, not just one group. Sharing it as an
+  // "invite" would hand someone else this device's group list, so the
+  // messaging here has to say the opposite of copyGroupLink's.
   async function copyAppRootLink(url) {
     try {
       await navigator.clipboard.writeText(url);
-      setToast({ message: "내 기기 저장용 주소예요. 초대 주소가 아니니 다른 사람에게 보내지 마세요", undo: null });
+      setToast({ message: "내 그룹 목록 복구용 주소예요. 다른 사람에게 보내지 말고 내 새 기기/앱에서만 열어주세요", undo: null });
     } catch {
       setToast({ message: `복사에 실패했어요. 직접 복사해 주세요: ${url}`, undo: null });
     }
@@ -2469,6 +2612,25 @@ export default function GroupApp() {
   const dayMemos = tasksOnDay(selectedDay).filter((t) => t.note);
   const selectedLunarLabel = getLunarLabel(viewYear, viewMonth, selectedDay);
 
+  if (recovering) {
+    return (
+      <div
+        style={{
+          fontFamily: "var(--font-sans)",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+        }}
+      >
+        <img src="/favicon.svg" alt="" className="loading-logo" style={{ width: 48, height: 46 }} />
+        <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: 0 }}>내 그룹 목록을 불러오는 중...</p>
+      </div>
+    );
+  }
+
   // ---------- GROUP LIST ----------
   if (view === "groups") {
     return (
@@ -2591,7 +2753,7 @@ export default function GroupApp() {
           <Plus size={19} /> 새 그룹 만들기
         </button>
         <button
-          onClick={() => copyAppRootLink(window.location.origin)}
+          onClick={() => copyAppRootLink(`${window.location.origin}${withRecoveryParam("/")}`)}
           style={{
             width: "100%",
             marginBottom: 4,
@@ -2607,7 +2769,7 @@ export default function GroupApp() {
           <Share2 size={18} /> 내 그룹 목록 주소 복사하기
         </button>
         <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 12px", textAlign: "center" }}>
-          초대용 주소가 아니에요. 이 화면을 내 기기에 저장해둘 때만 사용하세요.
+          초대용 주소가 아니에요. 다른 기기나 새로 설치한 앱에서 이 주소를 열면 지금 이 목록을 그대로 불러올 수 있어요.
         </p>
         <button
           onClick={openFeedback}
@@ -2625,7 +2787,7 @@ export default function GroupApp() {
           피드백 남기기
         </button>
         <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "10px 0 0", textAlign: "center" }}>
-          "내 그룹" 목록은 로그인 없이 이 기기에만 저장돼요.
+          "내 그룹" 목록은 로그인 없이 이 기기에 저장돼요. 다른 기기에서도 보려면 위 "주소 복사하기"를 이용하세요.
         </p>
       </div>
       {renderBottomTabBar("home")}
