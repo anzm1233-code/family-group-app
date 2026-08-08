@@ -1114,6 +1114,21 @@ export default function GroupApp() {
     setTimeout(() => setToast(null), 2500);
   }
 
+  // Unlike copyGroupLink, this is the bare app origin (no /g/:id) — useful
+  // only as a personal bookmark for this device, since a fresh visitor with
+  // no saved groups just lands on an empty "새 그룹 만들기" screen. Sharing
+  // it as an "invite" would show the recipient nothing, so the messaging
+  // here has to say the opposite of copyGroupLink's.
+  async function copyAppRootLink(url) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast({ message: "내 기기 저장용 주소예요. 초대 주소가 아니니 다른 사람에게 보내지 마세요", undo: null });
+    } catch {
+      setToast({ message: `복사에 실패했어요. 직접 복사해 주세요: ${url}`, undo: null });
+    }
+    setTimeout(() => setToast(null), 4000);
+  }
+
   // Same link for every group type — anyone who opens it sees and edits the
   // same shared data, so "초대" is just "share this URL". Opens the dedicated
   // invite screen (link + QR code) rather than copying immediately, since a
@@ -2576,10 +2591,10 @@ export default function GroupApp() {
           <Plus size={19} /> 새 그룹 만들기
         </button>
         <button
-          onClick={() => copyGroupLink(window.location.origin)}
+          onClick={() => copyAppRootLink(window.location.origin)}
           style={{
             width: "100%",
-            marginBottom: 8,
+            marginBottom: 4,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -2591,6 +2606,9 @@ export default function GroupApp() {
         >
           <Share2 size={18} /> 내 그룹 목록 주소 복사하기
         </button>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 12px", textAlign: "center" }}>
+          초대용 주소가 아니에요. 이 화면을 내 기기에 저장해둘 때만 사용하세요.
+        </p>
         <button
           onClick={openFeedback}
           style={{
