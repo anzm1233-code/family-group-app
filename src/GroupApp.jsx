@@ -2276,40 +2276,20 @@ export default function GroupApp() {
 
         {open && (
           <>
-            <input
+            <textarea
               value={newTaskTitle}
               onChange={(e) => setNewTaskTitle(e.target.value)}
               placeholder="할일 또는 공지 내용을 입력하세요"
               autoFocus
-              style={{ width: "100%", fontSize: 17, padding: "12px 12px", marginBottom: 8 }}
+              rows={2}
+              style={{ width: "100%", fontSize: 17, padding: "12px 12px", marginBottom: 10, resize: "none", boxSizing: "border-box" }}
             />
-            <div
-              onClick={openTimePicker}
-              style={{
-                width: "100%",
-                marginBottom: 10,
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: "0.5px solid var(--border)",
-                background: "var(--surface-2)",
-                color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
-                fontSize: 16,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                whiteSpace: "nowrap",
-                boxSizing: "border-box",
-              }}
-            >
-              {newTaskTime ? formatDisplayTime(newTaskTime) : "시간 선택"}
-            </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
               <select
                 value={selectedAssignee}
                 onChange={(e) => setNewTaskAssignee(e.target.value)}
                 disabled={newTaskBroadcast}
-                style={{ flex: 1 }}
+                style={{ flex: 1, minWidth: 0 }}
               >
                 {active.members.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -2317,6 +2297,27 @@ export default function GroupApp() {
                   </option>
                 ))}
               </select>
+              <div
+                onClick={openTimePicker}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "0.5px solid var(--border)",
+                  background: "var(--surface-2)",
+                  color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  whiteSpace: "nowrap",
+                  boxSizing: "border-box",
+                }}
+              >
+                {newTaskTime ? formatDisplayTime(newTaskTime) : "시간 선택"}
+              </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>색상</span>
