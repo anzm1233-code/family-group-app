@@ -2276,32 +2276,33 @@ export default function GroupApp() {
 
         {open && (
           <>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-              <input
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder="할일 또는 공지 내용"
-                style={{ flex: 1, minWidth: 0 }}
-              />
-              <div
-                onClick={openTimePicker}
-                style={{
-                  minWidth: 130,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: "0.5px solid var(--border)",
-                  background: "var(--surface-2)",
-                  color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
-                  fontSize: 16,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {newTaskTime ? formatDisplayTime(newTaskTime) : "시간 선택"}
-              </div>
+            <input
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              placeholder="할일 또는 공지 내용을 입력하세요"
+              autoFocus
+              style={{ width: "100%", fontSize: 17, padding: "12px 12px", marginBottom: 8 }}
+            />
+            <div
+              onClick={openTimePicker}
+              style={{
+                width: "100%",
+                marginBottom: 10,
+                padding: "8px 10px",
+                borderRadius: 8,
+                border: "0.5px solid var(--border)",
+                background: "var(--surface-2)",
+                color: newTaskTime ? "var(--text-primary)" : "var(--text-muted)",
+                fontSize: 16,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                whiteSpace: "nowrap",
+                boxSizing: "border-box",
+              }}
+            >
+              {newTaskTime ? formatDisplayTime(newTaskTime) : "시간 선택"}
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
               <select
