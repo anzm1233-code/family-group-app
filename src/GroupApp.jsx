@@ -663,15 +663,19 @@ export default function GroupApp() {
 
   // "다가오는 일정" preview: tasks and events landing in the next two days only
   // (today's and overdue items belong in 오늘 할일 instead). Anything further
-  // out is only in the full calendar.
+  // out is only in the full calendar. Memos have no "오늘" section of their
+  // own anywhere on this tab, so a memo dated today would otherwise be
+  // invisible on the home tab entirely — memoWindow includes today so it
+  // still shows up here.
   const upcomingWindow = [1, 2].map((n) => addDaysToYMD(today, todayMonth, todayYear, n));
+  const memoWindow = [{ month: todayMonth, day: today }, ...upcomingWindow];
   const upcomingItems = active
     ? [
         ...active.tasks
           .filter((t) => !t.note && isTaskVisibleToMe(t) && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
           .map((t) => ({ kind: "task", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
         ...active.tasks
-          .filter((t) => t.note && isTaskVisibleToMe(t) && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
+          .filter((t) => t.note && isTaskVisibleToMe(t) && memoWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
           .map((t) => ({ kind: "memo", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
         ...active.events
           .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
