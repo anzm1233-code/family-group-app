@@ -670,6 +670,9 @@ export default function GroupApp() {
         ...active.tasks
           .filter((t) => !t.note && isTaskVisibleToMe(t) && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
           .map((t) => ({ kind: "task", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
+        ...active.tasks
+          .filter((t) => t.note && isTaskVisibleToMe(t) && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
+          .map((t) => ({ kind: "memo", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
         ...active.events
           .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
           .map((e) => ({ kind: "event", id: e.id, month: todayMonth, day: e.date, data: e })),
@@ -3714,6 +3717,26 @@ export default function GroupApp() {
                     {!item.data.broadcast && !item.data.private && item.data.assignee && (
                       <Avatar tier={memberById[item.data.assignee]?.tier ?? 0} size={18} photo={memberById[item.data.assignee]?.photo} />
                     )}
+                  </div>
+                ) : item.kind === "memo" ? (
+                  <div
+                    key={`memo-${item.id}`}
+                    onClick={() => {
+                      setViewYear(todayYear);
+                      setViewMonth(todayMonth);
+                      setSelectedDay(item.day);
+                      goToTab("calendar");
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, cursor: "pointer" }}
+                  >
+                    <div style={{ width: 34, textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>
+                      {item.month}/{item.day}
+                    </div>
+                    <span
+                      style={{ width: 8, height: 8, borderRadius: "50%", background: item.data.color || active.accent, flexShrink: 0 }}
+                    />
+                    <StickyNote size={16} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>{item.data.title}</div>
                   </div>
                 ) : (
                   <div
