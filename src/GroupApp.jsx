@@ -560,6 +560,7 @@ export default function GroupApp() {
   const [showAddTaskForm, setShowAddTaskForm] = useState(false);
   const [showCalendarAddTaskForm, setShowCalendarAddTaskForm] = useState(false);
   const [showMemoForm, setShowMemoForm] = useState(false);
+  const [showHomeMemoForm, setShowHomeMemoForm] = useState(false);
   const [newMemoTitle, setNewMemoTitle] = useState("");
   const [newMemoColor, setNewMemoColor] = useState(TASK_COLORS[0]);
   const [newMemoBroadcast, setNewMemoBroadcast] = useState(false);
@@ -1149,6 +1150,8 @@ export default function GroupApp() {
     setTab(nextTab);
     setShowAddTaskForm(false);
     setShowCalendarAddTaskForm(false);
+    setShowMemoForm(false);
+    setShowHomeMemoForm(false);
   }
 
   function openGroup(id) {
@@ -2450,6 +2453,143 @@ export default function GroupApp() {
     );
   }
 
+  // Shared collapsible add-memo form — used on the home tab (defaults to
+  // "today") and on the calendar tab (targets whichever day is selected there),
+  // the same split renderAddTaskForm above uses.
+  function renderAddMemoForm(open, onToggle, onClose, dueMonth, dueDay) {
+    return (
+      <div style={{ marginTop: 6 }}>
+        <button
+          onClick={onToggle}
+          style={{
+            width: "100%",
+            marginBottom: open ? 10 : 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            background: "transparent",
+            border: "0.5px solid var(--border)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          {open ? "접기" : (
+            <>
+              <StickyNote size={17} /> 메모 추가
+            </>
+          )}
+        </button>
+        {open && (
+          <div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <input
+                value={newMemoTitle}
+                onChange={(e) => setNewMemoTitle(e.target.value)}
+                placeholder="예: 영희 8/10~8/15 휴가"
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <button
+                onClick={() => {
+                  if (addMemo(dueMonth, dueDay)) onClose();
+                }}
+              >
+                추가
+              </button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+              <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>색상</span>
+              {TASK_COLORS.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => setNewMemoColor(c)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: c,
+                    cursor: "pointer",
+                    border: newMemoColor === c ? "2px solid var(--text-primary)" : "2px solid transparent",
+                    boxShadow: "0 0 0 1px var(--border)",
+                  }}
+                />
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+              {newMemoPhotos.map((src, idx) => (
+                <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
+                  <img
+                    src={src}
+                    alt=""
+                    onClick={() => openPhotoViewer(newMemoPhotos, idx)}
+                    style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)", cursor: "pointer" }}
+                  />
+                  <div
+                    onClick={() => setNewMemoPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                    style={{
+                      position: "absolute",
+                      top: -5,
+                      right: -5,
+                      width: 15,
+                      height: 15,
+                      borderRadius: "50%",
+                      background: "var(--text-primary)",
+                      color: "var(--surface-2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <X size={11} />
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => newMemoPhotoInputRef.current?.click()}
+                style={{
+                  fontSize: 14,
+                  padding: "6px 10px",
+                  background: "transparent",
+                  border: "0.5px dashed var(--border-strong)",
+                  color: "var(--text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Plus size={17} /> 사진 추가
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+                <input
+                  type="checkbox"
+                  checked={newMemoBroadcast}
+                  onChange={(e) => {
+                    setNewMemoBroadcast(e.target.checked);
+                    if (e.target.checked) setNewMemoPrivate(false);
+                  }}
+                />
+                전체에게 공지로 보내기
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+                <input
+                  type="checkbox"
+                  checked={newMemoPrivate}
+                  onChange={(e) => {
+                    setNewMemoPrivate(e.target.checked);
+                    if (e.target.checked) setNewMemoBroadcast(false);
+                  }}
+                />
+                나만 보기
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const newTaskPhotoInputRef = useRef(null);
 
   function handleNewTaskPhotoFileChange(e) {
@@ -3541,6 +3681,13 @@ export default function GroupApp() {
               todayMonth,
               today
             )}
+            {renderAddMemoForm(
+              showHomeMemoForm,
+              () => setShowHomeMemoForm((prev) => !prev),
+              () => setShowHomeMemoForm(false),
+              todayMonth,
+              today
+            )}
 
             <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
               <CalendarIcon size={18} color="#4F7CFF" /> 다가오는 일정
@@ -3897,135 +4044,13 @@ export default function GroupApp() {
                   selectedDay
                 )}
               </div>
-              <div style={{ marginTop: 6 }}>
-                <button
-                  onClick={() => setShowMemoForm((prev) => !prev)}
-                  style={{
-                    width: "100%",
-                    marginBottom: showMemoForm ? 10 : 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    background: "transparent",
-                    border: "0.5px solid var(--border)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  {showMemoForm ? "접기" : (
-                    <>
-                      <StickyNote size={17} /> 메모 추가
-                    </>
-                  )}
-                </button>
-                {showMemoForm && (
-                  <div>
-                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                      <input
-                        value={newMemoTitle}
-                        onChange={(e) => setNewMemoTitle(e.target.value)}
-                        placeholder="예: 영희 8/10~8/15 휴가"
-                        style={{ flex: 1, minWidth: 0 }}
-                      />
-                      <button
-                        onClick={() => {
-                          if (addMemo(viewMonth, selectedDay)) setShowMemoForm(false);
-                        }}
-                      >
-                        추가
-                      </button>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                      <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>색상</span>
-                      {TASK_COLORS.map((c) => (
-                        <div
-                          key={c}
-                          onClick={() => setNewMemoColor(c)}
-                          style={{
-                            width: 20,
-                            height: 20,
-                            borderRadius: "50%",
-                            background: c,
-                            cursor: "pointer",
-                            border: newMemoColor === c ? "2px solid var(--text-primary)" : "2px solid transparent",
-                            boxShadow: "0 0 0 1px var(--border)",
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-                      {newMemoPhotos.map((src, idx) => (
-                        <div key={idx} style={{ position: "relative", width: 40, height: 40 }}>
-                          <img
-                            src={src}
-                            alt=""
-                            onClick={() => openPhotoViewer(newMemoPhotos, idx)}
-                            style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: "0.5px solid var(--border)", cursor: "pointer" }}
-                          />
-                          <div
-                            onClick={() => setNewMemoPhotos((prev) => prev.filter((_, i) => i !== idx))}
-                            style={{
-                              position: "absolute",
-                              top: -5,
-                              right: -5,
-                              width: 15,
-                              height: 15,
-                              borderRadius: "50%",
-                              background: "var(--text-primary)",
-                              color: "var(--surface-2)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <X size={11} />
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => newMemoPhotoInputRef.current?.click()}
-                        style={{
-                          fontSize: 14,
-                          padding: "6px 10px",
-                          background: "transparent",
-                          border: "0.5px dashed var(--border-strong)",
-                          color: "var(--text-secondary)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <Plus size={17} /> 사진 추가
-                      </button>
-                    </div>
-                    <div style={{ display: "flex", gap: 16 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
-                        <input
-                          type="checkbox"
-                          checked={newMemoBroadcast}
-                          onChange={(e) => {
-                            setNewMemoBroadcast(e.target.checked);
-                            if (e.target.checked) setNewMemoPrivate(false);
-                          }}
-                        />
-                        전체에게 공지로 보내기
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
-                        <input
-                          type="checkbox"
-                          checked={newMemoPrivate}
-                          onChange={(e) => {
-                            setNewMemoPrivate(e.target.checked);
-                            if (e.target.checked) setNewMemoBroadcast(false);
-                          }}
-                        />
-                        나만 보기
-                      </label>
-                    </div>
-                  </div>
-                )}
-              </div>
+              {renderAddMemoForm(
+                showMemoForm,
+                () => setShowMemoForm((prev) => !prev),
+                () => setShowMemoForm(false),
+                viewMonth,
+                selectedDay
+              )}
             </div>
           </>
         )}
