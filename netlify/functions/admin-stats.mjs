@@ -124,13 +124,35 @@ export default async (req) => {
 
   const body = `
     <h1>톡캘린더 사용 현황</h1>
-    <p class="sub">실시간 집계 · ${escapeHtml(new Date().toLocaleString("ko-KR"))} 기준</p>
-    <div class="grid">${cards}</div>
+    <p class="sub" id="sub">실시간 집계 · ${escapeHtml(new Date().toLocaleString("ko-KR"))} 기준 · 15초마다 자동 갱신</p>
+    <div class="grid" id="grid">${cards}</div>
     <h2>최근 실사용 그룹 (최신 20개, 한 번이라도 사용된 그룹만)</h2>
     <table>
       <thead><tr><th>그룹명</th><th>종류</th><th>멤버</th><th>생성일</th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="4" class="muted">아직 그룹이 없어요.</td></tr>`}</tbody>
+      <tbody id="groups-tbody">${rows || `<tr><td colspan="4" class="muted">아직 그룹이 없어요.</td></tr>`}</tbody>
     </table>
+    <script>
+      (function () {
+        // Re-fetches this same page every 15s and swaps in just the cards,
+        // timestamp, and table — not a full navigation/reload — so numbers
+        // stay current for anyone leaving this tab open, without losing
+        // scroll position or flashing a blank page each time.
+        function refresh() {
+          fetch(window.location.href, { cache: "no-store" })
+            .then(function (res) { return res.text(); })
+            .then(function (html) {
+              var doc = new DOMParser().parseFromString(html, "text/html");
+              ["grid", "sub", "groups-tbody"].forEach(function (id) {
+                var next = doc.getElementById(id);
+                var current = document.getElementById(id);
+                if (next && current) current.innerHTML = next.innerHTML;
+              });
+            })
+            .catch(function () {});
+        }
+        setInterval(refresh, 15000);
+      })();
+    </script>
   `;
 
   return new Response(page(body), {
