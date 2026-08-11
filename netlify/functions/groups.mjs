@@ -112,8 +112,19 @@ async function listGroupSummaries(pool, ids) {
   }));
 }
 
+// push_subscriptions and activity_log both key off group_id with no foreign
+// key (this schema has never used them), so a group delete has to clean
+// those up itself — otherwise they'd sit there forever as orphaned rows,
+// permanently inflating things like the admin stats' "알림 켠 기기 수" for a
+// group nobody can ever push to again.
 async function deleteGroup(pool, id) {
   const { rowCount } = await pool.query("DELETE FROM groups WHERE id = $1", [id]);
+  if (rowCount > 0) {
+    await Promise.all([
+      pool.query("DELETE FROM push_subscriptions WHERE group_id = $1", [id]),
+      pool.query("DELETE FROM activity_log WHERE group_id = $1", [id]),
+    ]);
+  }
   return rowCount > 0;
 }
 

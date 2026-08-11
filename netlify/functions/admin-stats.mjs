@@ -75,6 +75,16 @@ export default async (req) => {
   // happens to exist in the table (a *deleted* group is a real DELETE and
   // can never appear here at all — this is specifically about groups that
   // were created but never used).
+  // Deletes predate the cascade cleanup added to deleteGroup() in
+  // groups.mjs, so a viewing of this admin page also sweeps out any
+  // subscriptions/activity rows still orphaned from before that fix —
+  // self-healing on an otherwise-idle admin-only endpoint, rather than
+  // needing a one-off migration.
+  await Promise.all([
+    pool.query(`DELETE FROM push_subscriptions p WHERE NOT EXISTS (SELECT 1 FROM groups g WHERE g.id = p.group_id)`),
+    pool.query(`DELETE FROM activity_log a WHERE NOT EXISTS (SELECT 1 FROM groups g WHERE g.id = a.group_id)`),
+  ]).catch((err) => console.error("admin-stats orphan cleanup failed", err));
+
   const [totals, pushTotal, active7d, active30d, groups7d, recent] = await Promise.all([
     pool.query(`
       SELECT COUNT(*)::int AS total_groups, COALESCE(SUM(jsonb_array_length(g.members)),0)::int AS total_members
