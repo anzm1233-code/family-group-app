@@ -66,21 +66,37 @@ export default async (req) => {
 
   const { pool } = getDatabase();
 
+  // "실사용 그룹" = a group that's ever actually been used for something
+  // (task/notice added — see activity_log, populated from groups.mjs'
+  // addTask op), as opposed to one someone created via "새 그룹 만들기" and
+  // then abandoned without ever inviting anyone or adding anything. Total
+  // group/member counts and the recent-groups list are scoped to these so
+  // the dashboard reflects real usage rather than every row that still
+  // happens to exist in the table (a *deleted* group is a real DELETE and
+  // can never appear here at all — this is specifically about groups that
+  // were created but never used).
   const [totals, pushTotal, active7d, active30d, groups7d, recent] = await Promise.all([
-    pool.query(`SELECT COUNT(*)::int AS total_groups, COALESCE(SUM(jsonb_array_length(members)),0)::int AS total_members FROM groups`),
+    pool.query(`
+      SELECT COUNT(*)::int AS total_groups, COALESCE(SUM(jsonb_array_length(g.members)),0)::int AS total_members
+      FROM groups g
+      WHERE EXISTS (SELECT 1 FROM activity_log a WHERE a.group_id = g.id)
+    `),
     pool.query(`SELECT COUNT(*)::int AS n FROM push_subscriptions`),
     pool.query(`SELECT COUNT(DISTINCT group_id)::int AS n FROM activity_log WHERE created_at > now() - interval '7 days'`),
     pool.query(`SELECT COUNT(DISTINCT group_id)::int AS n FROM activity_log WHERE created_at > now() - interval '30 days'`),
     pool.query(`SELECT COUNT(*)::int AS n FROM groups WHERE created_at > now() - interval '7 days'`),
-    pool.query(
-      `SELECT id, name, kind, jsonb_array_length(members)::int AS member_count, created_at FROM groups ORDER BY created_at DESC LIMIT 20`
-    ),
+    pool.query(`
+      SELECT g.id, g.name, g.kind, jsonb_array_length(g.members)::int AS member_count, g.created_at
+      FROM groups g
+      WHERE EXISTS (SELECT 1 FROM activity_log a WHERE a.group_id = g.id)
+      ORDER BY g.created_at DESC LIMIT 20
+    `),
   ]);
 
   const t = totals.rows[0];
   const cards = [
-    ["총 그룹 수", t.total_groups],
-    ["총 등록 인원(멤버 합)", t.total_members],
+    ["실사용 그룹 수", t.total_groups],
+    ["실사용 그룹 인원(멤버 합)", t.total_members],
     ["알림 켠 기기 수", pushTotal.rows[0].n],
     ["최근 7일 활동 그룹", active7d.rows[0].n],
     ["최근 30일 활동 그룹", active30d.rows[0].n],
@@ -100,7 +116,7 @@ export default async (req) => {
     <h1>톡캘린더 사용 현황</h1>
     <p class="sub">실시간 집계 · ${escapeHtml(new Date().toLocaleString("ko-KR"))} 기준</p>
     <div class="grid">${cards}</div>
-    <h2>최근 생성된 그룹 (최신 20개)</h2>
+    <h2>최근 실사용 그룹 (최신 20개, 한 번이라도 사용된 그룹만)</h2>
     <table>
       <thead><tr><th>그룹명</th><th>종류</th><th>멤버</th><th>생성일</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="4" class="muted">아직 그룹이 없어요.</td></tr>`}</tbody>
