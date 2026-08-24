@@ -130,6 +130,19 @@ async function deleteGroup(pool, id) {
 
 class BadOpError extends Error {}
 
+// A member's `tokens` array (see claimIdentity below) is this app's only
+// notion of "is this device really that member" — checked against whatever
+// memberId/token the caller presents. A member being removed from `members`
+// takes their whole tokens array with them, which is what makes removal an
+// actual, immediate access revocation instead of just deleting a name tag:
+// every device that had claimed that identity starts failing this check on
+// its very next request.
+function isValidMemberToken(members, memberId, token) {
+  if (!memberId || !token) return false;
+  const member = (members || []).find((m) => m.id === memberId);
+  return !!member && Array.isArray(member.tokens) && member.tokens.includes(token);
+}
+
 // Applies one named, targeted operation to a group's members/tasks/events —
 // never a whole-document overwrite. The row is locked with SELECT ... FOR
 // UPDATE for the duration of the transaction, so every op sees the true
@@ -139,7 +152,13 @@ class BadOpError extends Error {}
 // around the same time used to have whoever saved second silently erase
 // whatever the first person had just added, because each save resent their
 // own (possibly stale) full copy of tasks/members/events.
-async function applyGroupOp(pool, id, body) {
+//
+// `requester` is whatever memberId/token the caller presented (see the
+// handler below) — not part of the op payload itself, just who's asking.
+// Returns: null (group not found), { forbidden, message } (identity check
+// or an owner-only op failed), { memberNotFound } (claimIdentity targeted a
+// member that doesn't/no-longer exists), or { group, claimedToken? }.
+async function applyGroupOp(pool, id, body, requester) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -153,6 +172,21 @@ async function applyGroupOp(pool, id, body) {
     let { name, members, tasks, events } = existing;
     let ownerMemberId = existing.owner_member_id;
 
+    // Anyone whose device has previously claimed an identity for this group
+    // must keep presenting a token that still resolves to a real member on
+    // every write — a device with no claimed identity at all (requester?.memberId
+    // absent) is unaffected, same no-login trust model as before this
+    // existed. claimIdentity is exempt since establishing a token is
+    // exactly what it's for.
+    if (body.op !== "claimIdentity" && requester?.memberId) {
+      if (!isValidMemberToken(members, requester.memberId, requester.token)) {
+        await client.query("ROLLBACK");
+        return { forbidden: true, message: "identity revoked" };
+      }
+    }
+
+    let claimedToken;
+
     switch (body.op) {
       // First-claim-wins: only takes effect if nobody has claimed ownership
       // of this group yet. Lets a device that already thinks it's the owner
@@ -163,6 +197,33 @@ async function applyGroupOp(pool, id, body) {
       case "claimOwner": {
         if (!body.memberId || typeof body.memberId !== "string") throw new BadOpError("memberId required");
         if (!ownerMemberId) ownerMemberId = body.memberId;
+        break;
+      }
+      // How a device gets a token for a member identity in the first place
+      // — clicking a name in "당신은 누구인가요?" (or the "나:" picker) calls
+      // this, which is why it's the one op allowed to run without already
+      // presenting a valid token. Anyone can still claim any listed member
+      // (no password gate on *which* name you pick — same trust level the
+      // app has always had for that choice); what's new is that the token
+      // this hands back is the thing that can later be revoked.
+      case "claimIdentity": {
+        if (!body.memberId || typeof body.memberId !== "string") throw new BadOpError("memberId required");
+        const target = members.find((m) => m.id === body.memberId);
+        if (!target) {
+          await client.query("ROLLBACK");
+          return { memberNotFound: true };
+        }
+        claimedToken = randomBytes(24).toString("base64url");
+        // Capped so an endlessly-reloading client can't grow this without
+        // bound — only the most recent devices to claim this identity stay
+        // valid, which is a fine trade-off for what's meant to be a handful
+        // of a person's own devices.
+        const MAX_TOKENS_PER_MEMBER = 20;
+        members = members.map((m) =>
+          m.id === body.memberId
+            ? { ...m, tokens: [...(m.tokens || []), claimedToken].slice(-MAX_TOKENS_PER_MEMBER) }
+            : m
+        );
         break;
       }
       case "addTask": {
@@ -201,10 +262,35 @@ async function applyGroupOp(pool, id, body) {
       case "updateGroupSettings": {
         const newMembers = Array.isArray(body.members) ? body.members : members;
         const removedIds = members.filter((m) => !newMembers.some((nm) => nm.id === m.id)).map((m) => m.id);
+        const addedIds = newMembers.filter((nm) => !members.some((m) => m.id === nm.id)).map((nm) => nm.id);
+        // Only restricted once a group actually has an owner on record —
+        // an older/ownerless group (never went through the owner-claim
+        // flow) keeps the original open behavior rather than becoming
+        // impossible for anyone to add members to.
+        if (addedIds.length > 0 && ownerMemberId) {
+          const requesterIsOwner =
+            requester?.memberId === ownerMemberId && isValidMemberToken(members, requester.memberId, requester.token);
+          if (!requesterIsOwner) {
+            await client.query("ROLLBACK");
+            return { forbidden: true, message: "owner only" };
+          }
+        }
         members = newMembers;
         name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : name;
         tasks = tasks.map((t) => (removedIds.includes(t.assignee) ? { ...t, assignee: null } : t));
         events = events.map((e) => ({ ...e, assignees: e.assignees.filter((a) => !removedIds.includes(a)) }));
+        // A removed member's tokens (see claimIdentity) go with them
+        // automatically since they're just part of the member object being
+        // dropped — but their push subscription is a separate table keyed
+        // by member_id, so it needs its own cleanup or a removed member's
+        // device would keep getting notified about a group it can no
+        // longer open.
+        if (removedIds.length > 0) {
+          await client.query("DELETE FROM push_subscriptions WHERE group_id = $1 AND member_id = ANY($2::text[])", [
+            id,
+            removedIds,
+          ]);
+        }
         break;
       }
       default:
@@ -219,7 +305,7 @@ async function applyGroupOp(pool, id, body) {
       [id, name, JSON.stringify(members), JSON.stringify(tasks), JSON.stringify(events), ownerMemberId]
     );
     await client.query("COMMIT");
-    return rowToGroup(updatedRows[0]);
+    return { group: rowToGroup(updatedRows[0]), claimedToken };
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     throw err;
@@ -232,6 +318,11 @@ export default async (req) => {
   const url = new URL(req.url);
   const segments = url.pathname.split("/").filter(Boolean); // ["api", "groups", ":id"?]
   const id = segments[2];
+  // Whichever member identity (see claimIdentity) this device has claimed
+  // for this group, if any — a device that's never claimed one sends
+  // neither and is treated exactly as before this feature existed.
+  const requesterMemberId = url.searchParams.get("memberId") || null;
+  const requesterToken = url.searchParams.get("token") || null;
 
   const { pool } = db();
   await ensureSchema(pool);
@@ -253,6 +344,11 @@ export default async (req) => {
     }
 
     if (req.method === "GET" && id && segments[3] === "activity") {
+      const group = await getGroup(pool, id);
+      if (!group) return json({ error: "not_found" }, 404);
+      if (requesterMemberId && !isValidMemberToken(group.members, requesterMemberId, requesterToken)) {
+        return json({ error: "forbidden" }, 403);
+      }
       const items = await listActivity(pool, id);
       return json({ items });
     }
@@ -260,13 +356,19 @@ export default async (req) => {
     if (req.method === "GET" && id) {
       const group = await getGroup(pool, id);
       if (!group) return json({ error: "not_found" }, 404);
+      if (requesterMemberId && !isValidMemberToken(group.members, requesterMemberId, requesterToken)) {
+        return json({ error: "forbidden" }, 403);
+      }
       return json(group);
     }
 
     if (req.method === "PUT" && id) {
       const body = await req.json().catch(() => ({}));
-      const group = await applyGroupOp(pool, id, body);
-      if (!group) return json({ error: "not_found" }, 404);
+      const result = await applyGroupOp(pool, id, body, { memberId: requesterMemberId, token: requesterToken });
+      if (!result) return json({ error: "not_found" }, 404);
+      if (result.forbidden) return json({ error: "forbidden", message: result.message }, 403);
+      if (result.memberNotFound) return json({ error: "member_not_found" }, 404);
+      const { group, claimedToken } = result;
       if (body.op === "addTask" && !body.task?.private) {
         const actorName = typeof body.actorName === "string" && body.actorName.trim() ? body.actorName.trim() : null;
         const what = body.task?.note ? "메모를" : body.task?.broadcast ? "공지를" : "할일을";
@@ -279,7 +381,7 @@ export default async (req) => {
           url: `/g/${id}`,
         }).catch((err) => console.error("push send failed", err));
       }
-      return json(group);
+      return json(claimedToken ? { ...group, claimedToken } : group);
     }
 
     if (req.method === "DELETE" && id) {

@@ -293,6 +293,61 @@ function saveWhoAmIMap(map) {
   }
 }
 
+// Unlike WHOAMI_KEY (just a display label), this is what actually proves
+// "this device is really that member" to the server — issued by the
+// claimIdentity op when a name is picked, and gone the moment the group
+// owner removes that member (their whole `tokens` array goes with them).
+// From then on every group request this device makes fails server-side
+// validation and gets 403'd — see currentGroupAuthQuery/withGroupAuth below
+// and the `forbidden` handling wherever groups are fetched/saved.
+const MEMBER_TOKEN_KEY = "familyGroupApp:memberTokens";
+
+function loadMemberTokens() {
+  try {
+    const raw = localStorage.getItem(MEMBER_TOKEN_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveMemberToken(groupId, token) {
+  try {
+    const map = loadMemberTokens();
+    map[groupId] = token;
+    localStorage.setItem(MEMBER_TOKEN_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
+function clearMemberToken(groupId) {
+  try {
+    const map = loadMemberTokens();
+    delete map[groupId];
+    localStorage.setItem(MEMBER_TOKEN_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage failures (e.g. private mode)
+  }
+}
+
+// Only sends memberId/token once this device actually has both for this
+// group — a device that's never claimed an identity (or whose claim hasn't
+// been backfilled with a token yet, see the effect in GroupApp()) sends
+// neither and the server treats the request exactly as it always has.
+function currentGroupAuthQuery(groupId) {
+  const memberId = loadWhoAmIMap()[groupId];
+  if (!memberId) return "";
+  const token = loadMemberTokens()[groupId];
+  if (!token) return "";
+  return `memberId=${encodeURIComponent(memberId)}&token=${encodeURIComponent(token)}`;
+}
+
+function withGroupAuth(path, groupId) {
+  const qs = currentGroupAuthQuery(groupId);
+  return qs ? `${path}${path.includes("?") ? "&" : "?"}${qs}` : path;
+}
+
 // Tracks which groups' "당신은 누구인가요?" prompt has been skipped on this
 // device, so declining once doesn't nag on every future visit.
 const WHOAMI_PROMPT_DISMISSED_KEY = "familyGroupApp:whoAmIPromptDismissed";
@@ -440,7 +495,7 @@ function bookmarkFromGroup(group) {
 // it) or null on failure.
 async function sendGroupOp(groupId, op) {
   try {
-    const res = await fetch(`/api/groups/${groupId}`, {
+    const res = await fetch(withGroupAuth(`/api/groups/${groupId}`, groupId), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(op),
@@ -448,10 +503,34 @@ async function sendGroupOp(groupId, op) {
     // Distinguished from a plain failure so callers can tell "someone else
     // deleted this group" apart from a transient network/server error —
     // the two need very different handling (kick back to the list vs. just
-    // retry).
+    // retry). 403 similarly means this device's claimed identity was
+    // revoked (its member got removed) — see removeForbiddenGroupFromClient.
     if (res.status === 404) return { notFound: true };
+    if (res.status === 403) return { forbidden: true };
     if (!res.ok) return null;
     return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Establishes this device's token for a member identity — called both when
+// someone actively picks "당신은 누구인가요?" and, silently, to backfill a
+// token for a device that already had a memberId saved from before this
+// feature existed. Deliberately doesn't go through withGroupAuth: this is
+// how a token is obtained in the first place, not something that requires
+// one already. Returns the new token, or null if the member doesn't exist
+// (already removed) or the request failed.
+async function claimIdentity(groupId, memberId) {
+  try {
+    const res = await fetch(`/api/groups/${groupId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "claimIdentity", memberId }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.claimedToken || null;
   } catch {
     return null;
   }
@@ -740,9 +819,30 @@ export default function GroupApp() {
     });
   }
 
-  function pickWhoAmIFromPrompt(memberId) {
+  // Picking a name now also claims a real token for it (see claimIdentity)
+  // — used by both the initial "당신은 누구인가요?" prompt and the "나:"
+  // dropdown in 그룹 관리, so either path leaves this device with a token
+  // the server will actually honor on future requests.
+  async function chooseWhoAmI(memberId) {
+    if (!memberId) {
+      clearMemberToken(activeId);
+      setWhoAmI(null);
+      return true;
+    }
+    const token = await claimIdentity(activeId, memberId);
+    if (!token) {
+      setToast({ message: "선택하지 못했어요. 다시 시도해 주세요", undo: null });
+      setTimeout(() => setToast(null), 3000);
+      return false;
+    }
+    saveMemberToken(activeId, token);
     setWhoAmI(memberId);
-    dismissWhoAmIPrompt();
+    return true;
+  }
+
+  async function pickWhoAmIFromPrompt(memberId) {
+    const ok = await chooseWhoAmI(memberId);
+    if (ok) dismissWhoAmIPrompt();
     // ownerMemberId back-fill for an already-owner device is handled by the
     // effect above once myMemberId resolves from this pick.
   }
@@ -800,7 +900,7 @@ export default function GroupApp() {
       const subscribeRes = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ groupId: activeId, subscription }),
+        body: JSON.stringify({ groupId: activeId, memberId: myMemberId, subscription }),
       });
       if (!subscribeRes.ok) {
         const errBody = await subscribeRes.text().catch(() => "");
@@ -872,6 +972,28 @@ export default function GroupApp() {
     setGroupLoadError("not_found");
   }
 
+  // The owner removed this device's claimed member from the group (or it
+  // was never a real member to begin with) — every trace of having been
+  // "in" this group gets cleared from this device, same as a deleted group,
+  // plus the now-invalid identity/token so a stale claim can't keep getting
+  // 403'd forever on every request.
+  function removeForbiddenGroupFromClient(groupId) {
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+    setBookmarks((prev) => {
+      const next = prev.filter((b) => b.id !== groupId);
+      saveBookmarks(next);
+      return next;
+    });
+    setWhoAmIMap((prev) => {
+      const next = { ...prev };
+      delete next[groupId];
+      saveWhoAmIMap(next);
+      return next;
+    });
+    clearMemberToken(groupId);
+    setGroupLoadError("forbidden");
+  }
+
   function runGroupOp(op, applyLocally) {
     const groupId = activeId;
     setGroups((prev) => prev.map((g) => (g.id !== groupId ? g : applyLocally(g))));
@@ -880,6 +1002,12 @@ export default function GroupApp() {
       .then((fresh) => {
         if (fresh && fresh.notFound) {
           removeDeletedGroupFromClient(groupId);
+          return;
+        }
+        if (fresh && fresh.forbidden) {
+          removeForbiddenGroupFromClient(groupId);
+          setToast({ message: "더 이상 이 그룹에 접근할 수 없어요", undo: null });
+          setTimeout(() => setToast(null), 4000);
           return;
         }
         if (!fresh) {
@@ -900,9 +1028,13 @@ export default function GroupApp() {
     if (!silent) setGroupLoading(true);
     setGroupLoadError(null);
     try {
-      const res = await fetch(`/api/groups/${id}`);
+      const res = await fetch(withGroupAuth(`/api/groups/${id}`, id));
       if (res.status === 404) {
         setGroupLoadError("not_found");
+        return;
+      }
+      if (res.status === 403) {
+        removeForbiddenGroupFromClient(id);
         return;
       }
       if (!res.ok) throw new Error("fetch_failed");
@@ -1017,6 +1149,28 @@ export default function GroupApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, myMemberId, active?.ownerMemberId, ownedGroups[activeId]]);
 
+  // Same idea, for member tokens: a device that already had a whoAmI pick
+  // saved from before claimIdentity existed has no token yet, which would
+  // otherwise mean every one of its requests goes through unauthenticated
+  // (harmless, but it also means removing that member would never actually
+  // block this device — the whole point of this feature). Silently claims
+  // one in the background the next time this group's opened, no prompt or
+  // visible change for someone who was already a legitimate member; if
+  // they'd in fact already been removed before this shipped, claimIdentity
+  // just fails and leaves them exactly as unauthenticated as they were.
+  useEffect(() => {
+    if (!activeId || !myMemberId) return;
+    if (loadMemberTokens()[activeId]) return;
+    let cancelled = false;
+    claimIdentity(activeId, myMemberId).then((token) => {
+      if (!cancelled && token) saveMemberToken(activeId, token);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, myMemberId]);
+
   // Deep link support: a page load on /g/:id fetches that group directly,
   // with no login — the link itself is the access control.
   useEffect(() => {
@@ -1058,10 +1212,16 @@ export default function GroupApp() {
     const POLL_INTERVAL_MS = 5000;
     const interval = setInterval(() => {
       if (document.hidden || pendingSaveCountRef.current > 0) return;
-      fetch(`/api/groups/${groupId}`)
+      fetch(withGroupAuth(`/api/groups/${groupId}`, groupId))
         .then((res) => {
           if (res.status === 404) {
             removeDeletedGroupFromClient(groupId);
+            return null;
+          }
+          if (res.status === 403) {
+            removeForbiddenGroupFromClient(groupId);
+            setToast({ message: "더 이상 이 그룹에 접근할 수 없어요", undo: null });
+            setTimeout(() => setToast(null), 4000);
             return null;
           }
           return res.ok ? res.json() : null;
@@ -1303,8 +1463,18 @@ export default function GroupApp() {
   function openActivityScreen() {
     setActivityScreenOpen(true);
     setActivityLoading(true);
-    fetch(`/api/groups/${activeId}/activity`)
-      .then((res) => (res.ok ? res.json() : { items: [] }))
+    const groupId = activeId;
+    fetch(withGroupAuth(`/api/groups/${groupId}/activity`, groupId))
+      .then((res) => {
+        if (res.status === 403) {
+          setActivityScreenOpen(false);
+          removeForbiddenGroupFromClient(groupId);
+          setToast({ message: "더 이상 이 그룹에 접근할 수 없어요", undo: null });
+          setTimeout(() => setToast(null), 4000);
+          return { items: [] };
+        }
+        return res.ok ? res.json() : { items: [] };
+      })
       .then((data) => setActivityItems(data.items || []))
       .catch(() => setActivityItems([]))
       .finally(() => setActivityLoading(false));
@@ -3229,6 +3399,22 @@ export default function GroupApp() {
               </button>
             </>
           )}
+          {!groupLoading && groupLoadError === "forbidden" && (
+            <>
+              <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: "0 0 14px" }}>
+                더 이상 이 그룹에 접근할 수 없어요. 그룹장이 멤버에서 삭제했어요.
+              </p>
+              <button
+                onClick={() => {
+                  navigateToGroupsListUrl();
+                  setView("groups");
+                }}
+                style={{ width: "100%" }}
+              >
+                내 그룹으로 돌아가기
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -3339,7 +3525,7 @@ export default function GroupApp() {
           <span>나:</span>
           <select
             value={myMemberId ?? ""}
-            onChange={(e) => setWhoAmI(e.target.value || null)}
+            onChange={(e) => chooseWhoAmI(e.target.value || null)}
             style={{ fontSize: 14, padding: "2px 6px" }}
           >
             <option value="">선택 안 함</option>
@@ -4579,28 +4765,34 @@ export default function GroupApp() {
               )}
             </div>
 
-            {showAddMember ? (
-              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                <input
-                  autoFocus
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") addDraftMember();
-                  }}
-                  placeholder="멤버 이름"
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-                <button onClick={addDraftMember}>추가</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAddMember(true)}
-                style={{ width: "100%", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-              >
-                <Plus size={19} /> 멤버 추가
-              </button>
-            )}
+            {/* Once a group has an established owner, only they can add members
+                (enforced server-side too — see updateGroupSettings in groups.mjs)
+                so someone the owner just removed can't self-register a new name
+                and slip back in. A group with no owner on record yet keeps the
+                original open behavior, matching what the server still allows. */}
+            {(!active.ownerMemberId || isGroupOwner) &&
+              (showAddMember ? (
+                <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                  <input
+                    autoFocus
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addDraftMember();
+                    }}
+                    placeholder="멤버 이름"
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <button onClick={addDraftMember}>추가</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddMember(true)}
+                  style={{ width: "100%", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                >
+                  <Plus size={19} /> 멤버 추가
+                </button>
+              ))}
 
             <button onClick={saveGroupSettings} style={{ width: "100%" }}>
               수정 완료

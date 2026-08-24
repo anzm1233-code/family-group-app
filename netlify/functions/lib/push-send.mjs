@@ -54,5 +54,12 @@ export async function ensurePushSchema(pool) {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS push_subscriptions_group_id_idx ON push_subscriptions (group_id);
+    -- Which member (if any) this device's subscription belongs to, so a
+    -- member removal (see groups.mjs's updateGroupSettings) can delete
+    -- exactly that member's subscriptions instead of leaving them to keep
+    -- notifying a device that can no longer open the group. Nullable: a
+    -- subscription made before this column existed, or by a device that
+    -- never claimed an identity, just won't be attributable to anyone.
+    ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS member_id TEXT;
   `);
 }

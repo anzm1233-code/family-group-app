@@ -31,15 +31,16 @@ export default async (req) => {
     if (req.method === "POST" && action === "subscribe") {
       const body = await req.json().catch(() => ({}));
       const groupId = typeof body.groupId === "string" ? body.groupId : "";
+      const memberId = typeof body.memberId === "string" && body.memberId ? body.memberId : null;
       const sub = body.subscription;
       if (!groupId || !sub || typeof sub.endpoint !== "string" || !sub.keys?.p256dh || !sub.keys?.auth) {
         return json({ error: "bad_request" }, 400);
       }
       await pool.query(
-        `INSERT INTO push_subscriptions (group_id, endpoint, p256dh, auth)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (endpoint) DO UPDATE SET group_id = $1, p256dh = $3, auth = $4`,
-        [groupId, sub.endpoint, sub.keys.p256dh, sub.keys.auth]
+        `INSERT INTO push_subscriptions (group_id, member_id, endpoint, p256dh, auth)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (endpoint) DO UPDATE SET group_id = $1, member_id = $2, p256dh = $4, auth = $5`,
+        [groupId, memberId, sub.endpoint, sub.keys.p256dh, sub.keys.auth]
       );
       return json({ ok: true }, 201);
     }
