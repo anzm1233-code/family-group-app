@@ -2666,7 +2666,7 @@ export default function GroupApp() {
               <input
                 value={newMemoTitle}
                 onChange={(e) => setNewMemoTitle(e.target.value)}
-                placeholder="예: 영희 8/10~8/15 휴가"
+                placeholder="메모 내용을 입력하세요"
                 style={{ flex: 1, minWidth: 0 }}
               />
               <button
