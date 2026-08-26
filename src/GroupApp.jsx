@@ -742,20 +742,15 @@ export default function GroupApp() {
 
   // "다가오는 일정" preview: tasks and events landing in the next two days only
   // (today's and overdue items belong in 오늘 할일 instead). Anything further
-  // out is only in the full calendar. Memos have no "오늘" section of their
-  // own anywhere on this tab, so a memo dated today would otherwise be
-  // invisible on the home tab entirely — memoWindow includes today so it
-  // still shows up here.
+  // out is only in the full calendar. Memos are deliberately left out —
+  // adding one shows a toast instead (see addMemo) — mixing them into this
+  // list made people misread a memo as an actual 일정.
   const upcomingWindow = [1, 2].map((n) => addDaysToYMD(today, todayMonth, todayYear, n));
-  const memoWindow = [{ month: todayMonth, day: today }, ...upcomingWindow];
   const upcomingItems = active
     ? [
         ...active.tasks
           .filter((t) => !t.note && isTaskVisibleToMe(t) && upcomingWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
           .map((t) => ({ kind: "task", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
-        ...active.tasks
-          .filter((t) => t.note && isTaskVisibleToMe(t) && memoWindow.some((d) => d.month === taskMonth(t) && d.day === taskDay(t)))
-          .map((t) => ({ kind: "memo", id: t.id, month: taskMonth(t), day: taskDay(t), data: t })),
         ...active.events
           .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
           .map((e) => ({ kind: "event", id: e.id, month: todayMonth, day: e.date, data: e })),
@@ -2379,6 +2374,11 @@ export default function GroupApp() {
     setNewMemoBroadcast(false);
     setNewMemoPrivate(false);
     setNewMemoPhotos([]);
+    // Memos aren't in "다가오는 일정" (see upcomingItems above) — this toast
+    // is the confirmation instead, so adding one doesn't feel like it
+    // silently went nowhere.
+    setToast({ message: "메모가 추가됐어요", undo: null });
+    setTimeout(() => setToast(null), 2500);
     return true;
   }
 
@@ -2634,8 +2634,12 @@ export default function GroupApp() {
   // "today") and on the calendar tab (targets whichever day is selected there),
   // the same split renderAddTaskForm above uses.
   function renderAddMemoForm(open, onToggle, onClose, dueMonth, dueDay) {
+    // Distinct purple (matching the 메모 icon color used everywhere else,
+    // e.g. the "OO월 공유 메모" row) and extra top margin — the two toggle
+    // buttons used to be the same size, stacked right on top of each other,
+    // and easy to mix up with "+ 일정추가" right above.
     return (
-      <div style={{ marginTop: 6 }}>
+      <div style={{ marginTop: 20 }}>
         <button
           onClick={onToggle}
           style={{
@@ -2645,9 +2649,9 @@ export default function GroupApp() {
             alignItems: "center",
             justifyContent: "center",
             gap: 6,
-            background: "transparent",
-            border: "0.5px solid var(--border)",
-            color: "var(--text-secondary)",
+            background: "rgba(139, 92, 246, 0.12)",
+            border: "0.5px solid #8B5CF6",
+            color: "#8B5CF6",
           }}
         >
           {open ? "접기" : (
@@ -3907,26 +3911,6 @@ export default function GroupApp() {
                     {!item.data.broadcast && !item.data.private && item.data.assignee && (
                       <Avatar tier={memberById[item.data.assignee]?.tier ?? 0} size={18} photo={memberById[item.data.assignee]?.photo} />
                     )}
-                  </div>
-                ) : item.kind === "memo" ? (
-                  <div
-                    key={`memo-${item.id}`}
-                    onClick={() => {
-                      setViewYear(todayYear);
-                      setViewMonth(todayMonth);
-                      setSelectedDay(item.day);
-                      goToTab("calendar");
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, cursor: "pointer" }}
-                  >
-                    <div style={{ width: 34, textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>
-                      {item.month}/{item.day}
-                    </div>
-                    <span
-                      style={{ width: 8, height: 8, borderRadius: "50%", background: item.data.color || active.accent, flexShrink: 0 }}
-                    />
-                    <StickyNote size={16} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>{item.data.title}</div>
                   </div>
                 ) : (
                   <div
