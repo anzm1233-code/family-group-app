@@ -3549,7 +3549,13 @@ export default function GroupApp() {
               icon: CalendarIcon,
               color: "#4F7CFF",
               bg: "#E9F0FF",
-              count: active.tasks.filter((t) => !t.note && !t.private).length + active.events.length,
+              // The "OO월" label promises this month only — these used to
+              // count every non-private task/event ever added to the group,
+              // regardless of due date, which made the number balloon well
+              // past what's actually on this month's calendar.
+              count:
+                active.tasks.filter((t) => !t.note && !t.private && taskMonth(t) === todayMonth).length +
+                active.events.length,
               onClick: () => goToTab("calendar"),
             },
             {
@@ -3558,7 +3564,7 @@ export default function GroupApp() {
               icon: StickyNote,
               color: "#8B5CF6",
               bg: "#F1EAFE",
-              count: active.tasks.filter((t) => t.note && isTaskVisibleToMe(t)).length,
+              count: active.tasks.filter((t) => t.note && isTaskVisibleToMe(t) && taskMonth(t) === todayMonth).length,
               onClick: () => setMemoListOpen(true),
             },
             {
