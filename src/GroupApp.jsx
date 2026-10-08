@@ -3568,7 +3568,7 @@ export default function GroupApp() {
           {[
             {
               key: "schedule",
-              label: `${now.getMonth() + 1}월 공유 일정`,
+              label: `${viewMonth}월 공유 일정`,
               icon: CalendarIcon,
               color: "#4F7CFF",
               bg: "#E9F0FF",
@@ -3577,17 +3577,17 @@ export default function GroupApp() {
               // regardless of due date, which made the number balloon well
               // past what's actually on this month's calendar.
               count:
-                active.tasks.filter((t) => !t.note && !t.private && taskMonth(t) === todayMonth).length +
+                active.tasks.filter((t) => !t.note && !t.private && taskMonth(t) === viewMonth).length +
                 active.events.length,
               onClick: () => goToTab("calendar"),
             },
             {
               key: "memo",
-              label: `${now.getMonth() + 1}월 공유 메모`,
+              label: `${viewMonth}월 공유 메모`,
               icon: StickyNote,
               color: "#8B5CF6",
               bg: "#F1EAFE",
-              count: active.tasks.filter((t) => t.note && isTaskVisibleToMe(t) && taskMonth(t) === todayMonth).length,
+              count: active.tasks.filter((t) => t.note && isTaskVisibleToMe(t) && taskMonth(t) === viewMonth).length,
               onClick: () => setMemoListOpen(true),
             },
             {
@@ -5087,18 +5087,18 @@ export default function GroupApp() {
                 <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#F1EAFE", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                   <StickyNote size={16} color="#8B5CF6" />
                 </span>
-                공유 메모
+                {viewMonth}월 공유 메모
               </p>
               <X size={22} color="var(--text-secondary)" style={{ cursor: "pointer" }} onClick={() => setMemoListOpen(false)} />
             </div>
 
-            {active.tasks.filter((t) => t.note && isTaskVisibleToMe(t)).length === 0 && (
-              <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>아직 메모가 없어요.</p>
+            {active.tasks.filter((t) => t.note && isTaskVisibleToMe(t) && taskMonth(t) === viewMonth).length === 0 && (
+              <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>{viewMonth}월 메모가 없어요.</p>
             )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {active.tasks
-                .filter((t) => t.note && isTaskVisibleToMe(t))
+                .filter((t) => t.note && isTaskVisibleToMe(t) && taskMonth(t) === viewMonth)
                 .sort((a, b) => taskMonth(a) - taskMonth(b) || taskDay(a) - taskDay(b))
                 .map((m) => (
                   <div
