@@ -754,7 +754,14 @@ export default function GroupApp() {
         ...active.events
           .filter((e) => upcomingWindow.some((d) => d.month === todayMonth && d.day === e.date))
           .map((e) => ({ kind: "event", id: e.id, month: todayMonth, day: e.date, data: e })),
-      ].sort((a, b) => a.month - b.month || a.day - b.day)
+      ].sort(
+        (a, b) =>
+          a.month - b.month ||
+          a.day - b.day ||
+          timeKey(a.kind === "task" ? taskTime(a.data) : a.data.time).localeCompare(
+            timeKey(b.kind === "task" ? taskTime(b.data) : b.data.time)
+          )
+      )
     : [];
 
   // "내 그룹" dashboard: today's undone tasks across every bookmarked group,
@@ -2200,6 +2207,22 @@ export default function GroupApp() {
     return m ? parseInt(m[1], 10) : null;
   }
 
+  // "HH:MM" from a task's due ("11/17 08:00") — "" when no time was picked,
+  // so untimed items sort first (same convention as the 내 그룹 dashboard).
+  function taskTime(t) {
+    return t.due && t.due.includes(" ") ? t.due.split(" ")[1] : "";
+  }
+
+  // Sort key that works for both "08:00" and legacy "8:00" values.
+  function timeKey(str) {
+    const m = (str || "").match(/(\d{1,2}):(\d{2})/);
+    return m ? String(parseInt(m[1], 10)).padStart(2, "0") + ":" + m[2] : "";
+  }
+
+  function byTaskTime(a, b) {
+    return timeKey(taskTime(a)).localeCompare(timeKey(taskTime(b)));
+  }
+
   function taskMonth(t) {
     const m = t.due.match(/^(\d+)\//);
     return m ? parseInt(m[1], 10) : null;
@@ -2930,8 +2953,8 @@ export default function GroupApp() {
   const eventsOnDay = (d) => (active ? active.events.filter((e) => e.date === d) : []);
   const tasksOnDay = (d) =>
     active ? active.tasks.filter((t) => isTaskVisibleToMe(t) && taskMonth(t) === viewMonth && taskDay(t) === d) : [];
-  const dayEvents = eventsOnDay(selectedDay);
-  const dayTasks = tasksOnDay(selectedDay).filter((t) => !t.note);
+  const dayEvents = eventsOnDay(selectedDay).sort((a, b) => timeKey(a.time).localeCompare(timeKey(b.time)));
+  const dayTasks = tasksOnDay(selectedDay).filter((t) => !t.note).sort(byTaskTime);
   const dayMemos = tasksOnDay(selectedDay).filter((t) => t.note);
   const selectedLunarLabel = getLunarLabel(viewYear, viewMonth, selectedDay);
 
@@ -3771,6 +3794,7 @@ export default function GroupApp() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {active.tasks
                 .filter((t) => !t.note && isTaskVisibleToMe(t) && (isTaskDueToday(t) || (t.broadcast && !t.done && isTaskOverdue(t))))
+                .sort(byTaskTime)
                 .map((t) => (
                 <div
                   key={t.id}
