@@ -4010,10 +4010,14 @@ export default function GroupApp() {
                 if (!d) return <div key={i} style={{ height: 72 }} />;
                 const dayTasksForDot = tasksOnDay(d).filter((t) => !t.note);
                 const dayMemosForDot = tasksOnDay(d).filter((t) => t.note);
+                // Dots follow the same time order as the day list below, so an
+                // 오전 dot always sits before an 오후 dot regardless of entry order.
                 const dotColors = [
-                  ...dayTasksForDot.map((t) => t.color || active.accent),
-                  ...eventsOnDay(d).map(() => active.accent),
-                ];
+                  ...dayTasksForDot.map((t) => ({ time: timeKey(taskTime(t)), color: t.color || active.accent })),
+                  ...eventsOnDay(d).map((e) => ({ time: timeKey(e.time), color: active.accent })),
+                ]
+                  .sort((x, y) => x.time.localeCompare(y.time))
+                  .map((x) => x.color);
                 const memoColors = dayMemosForDot.map((m) => m.color || "#8B5CF6");
                 const isSelected = d === selectedDay;
                 return (
