@@ -485,6 +485,31 @@ function bookmarkFromGroup(group) {
   };
 }
 
+// Retries a fetch on transient failure — no connection at all, or a non-ok
+// response that isn't a meaningful final answer (404/403 are returned
+// immediately; everything else, including a plain network error, is worth
+// retrying). The main real case this covers: this app's database suspends
+// itself after a quiet spell, and the first request after that has to wait
+// for it to wake back up — often longer than a single short timeout, but
+// it does come back, which is why a reload always "fixes" it. Retrying
+// in-place does the same thing without making someone leave the screen.
+async function fetchWithRetry(url, options, { maxAttempts = 5 } = {}) {
+  let lastRes = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || res.status === 404 || res.status === 403) return res;
+      lastRes = res;
+    } catch {
+      lastRes = null;
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(600 * 2 ** (attempt - 1), 4000)));
+    }
+  }
+  return lastRes;
+}
+
 // Sends one targeted operation (e.g. "add this task", "delete that task") for
 // the server to apply against its own current row — never the whole
 // members/tasks/events document. A previous version sent the client's full
@@ -495,7 +520,7 @@ function bookmarkFromGroup(group) {
 // it) or null on failure.
 async function sendGroupOp(groupId, op) {
   try {
-    const res = await fetch(withGroupAuth(`/api/groups/${groupId}`, groupId), {
+    const res = await fetchWithRetry(withGroupAuth(`/api/groups/${groupId}`, groupId), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(op),
@@ -505,6 +530,7 @@ async function sendGroupOp(groupId, op) {
     // the two need very different handling (kick back to the list vs. just
     // retry). 403 similarly means this device's claimed identity was
     // revoked (its member got removed) — see removeForbiddenGroupFromClient.
+    if (!res) return null;
     if (res.status === 404) return { notFound: true };
     if (res.status === 403) return { forbidden: true };
     if (!res.ok) return null;
@@ -523,12 +549,12 @@ async function sendGroupOp(groupId, op) {
 // (already removed) or the request failed.
 async function claimIdentity(groupId, memberId) {
   try {
-    const res = await fetch(`/api/groups/${groupId}`, {
+    const res = await fetchWithRetry(`/api/groups/${groupId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ op: "claimIdentity", memberId }),
     });
-    if (!res.ok) return null;
+    if (!res || !res.ok) return null;
     const data = await res.json();
     return data.claimedToken || null;
   } catch {
@@ -1029,43 +1055,38 @@ export default function GroupApp() {
   async function loadGroup(id, { silent = false } = {}) {
     if (!silent) setGroupLoading(true);
     setGroupLoadError(null);
-    // A cold Netlify function (DB connection pool not warmed up yet) or a
-    // flaky mobile connection right after opening the app can fail the
-    // very first request even though the group is perfectly reachable a
-    // moment later — retry a couple of times before giving up and showing
-    // the "그룹을 불러오지 못했어요" screen, so people hit that far less often.
-    const MAX_ATTEMPTS = 3;
+    // See fetchWithRetry — this is what lets a visit that lands right as
+    // the database is waking back up succeed instead of immediately
+    // showing "그룹을 불러오지 못했어요".
     try {
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        try {
-          const res = await fetch(withGroupAuth(`/api/groups/${id}`, id));
-          if (res.status === 404) {
-            setGroupLoadError("not_found");
-            return;
-          }
-          if (res.status === 403) {
-            removeForbiddenGroupFromClient(id);
-            return;
-          }
-          if (!res.ok) throw new Error("fetch_failed");
-          const group = await res.json();
-          cacheGroup(group);
-          const withNotify = applyNotifyPrefs([group])[0];
-          setGroups((prev) => (prev.some((g) => g.id === group.id) ? prev.map((g) => (g.id === group.id ? withNotify : g)) : [...prev, withNotify]));
-          setBookmarks((prev) => {
-            const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
-            saveBookmarks(next);
-            return next;
-          });
-          return;
-        } catch {
-          if (attempt === MAX_ATTEMPTS) {
-            if (!silent) setGroupLoadError("network");
-          } else {
-            await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
-          }
-        }
+      const res = await fetchWithRetry(withGroupAuth(`/api/groups/${id}`, id));
+      if (!res) {
+        if (!silent) setGroupLoadError("network");
+        return;
       }
+      if (res.status === 404) {
+        setGroupLoadError("not_found");
+        return;
+      }
+      if (res.status === 403) {
+        removeForbiddenGroupFromClient(id);
+        return;
+      }
+      if (!res.ok) {
+        if (!silent) setGroupLoadError("network");
+        return;
+      }
+      const group = await res.json();
+      cacheGroup(group);
+      const withNotify = applyNotifyPrefs([group])[0];
+      setGroups((prev) => (prev.some((g) => g.id === group.id) ? prev.map((g) => (g.id === group.id ? withNotify : g)) : [...prev, withNotify]));
+      setBookmarks((prev) => {
+        const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
+        saveBookmarks(next);
+        return next;
+      });
+    } catch {
+      if (!silent) setGroupLoadError("network");
     } finally {
       if (!silent) setGroupLoading(false);
     }
