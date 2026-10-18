@@ -488,12 +488,15 @@ function bookmarkFromGroup(group) {
 // Retries a fetch on transient failure — no connection at all, or a non-ok
 // response that isn't a meaningful final answer (404/403 are returned
 // immediately; everything else, including a plain network error, is worth
-// retrying). The main real case this covers: this app's database suspends
-// itself after a quiet spell, and the first request after that has to wait
-// for it to wake back up — often longer than a single short timeout, but
-// it does come back, which is why a reload always "fixes" it. Retrying
-// in-place does the same thing without making someone leave the screen.
-async function fetchWithRetry(url, options, { maxAttempts = 5 } = {}) {
+// retrying). The main real case this covers: this app's database (dashboard
+// confirms "Sleep on inactivity: after 5 minutes") suspends itself after a
+// quiet spell, and the first request after that has to wait for it to wake
+// back up — often several seconds, sometimes longer than one function
+// invocation's own timeout, which is why a single retry isn't always
+// enough and a reload (eventually) always "fixes" it. Each attempt here
+// also helps *trigger* that wake-up even when it times out itself, so a
+// later attempt in the same call often succeeds once it's warm.
+async function fetchWithRetry(url, options, { maxAttempts = 8 } = {}) {
   let lastRes = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
