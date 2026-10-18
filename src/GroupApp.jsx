@@ -489,14 +489,15 @@ function bookmarkFromGroup(group) {
 // response that isn't a meaningful final answer (404/403 are returned
 // immediately; everything else, including a plain network error, is worth
 // retrying). The main real case this covers: this app's database (dashboard
-// confirms "Sleep on inactivity: after 5 minutes") suspends itself after a
-// quiet spell, and the first request after that has to wait for it to wake
-// back up — often several seconds, sometimes longer than one function
-// invocation's own timeout, which is why a single retry isn't always
-// enough and a reload (eventually) always "fixes" it. Each attempt here
-// also helps *trigger* that wake-up even when it times out itself, so a
-// later attempt in the same call often succeeds once it's warm.
-async function fetchWithRetry(url, options, { maxAttempts = 8 } = {}) {
+// confirms "Sleep on inactivity: after 5 minutes", the shortest option the
+// free plan allows) suspends itself after a quiet spell, and the first
+// request after that has to wait for it to wake back up. Capped at ~9s of
+// waiting total (not the ~20s an earlier version used) — long enough to
+// usually ride out a cold start, short enough that someone isn't tempted to
+// reload mid-retry and kill the in-flight request before it ever reaches
+// the server, which looks exactly like a silent failure (no error toast,
+// but the change never actually saved).
+async function fetchWithRetry(url, options, { maxAttempts = 6 } = {}) {
   let lastRes = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -507,7 +508,7 @@ async function fetchWithRetry(url, options, { maxAttempts = 8 } = {}) {
       lastRes = null;
     }
     if (attempt < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, Math.min(600 * 2 ** (attempt - 1), 4000)));
+      await new Promise((resolve) => setTimeout(resolve, Math.min(600 * 2 ** (attempt - 1), 2500)));
     }
   }
   return lastRes;
@@ -2290,7 +2291,12 @@ export default function GroupApp() {
     const deleterName = myMemberId ? memberById[myMemberId]?.name : null;
     runGroupOp({ op: "deleteTask", taskId: task.id }, (g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== task.id) }));
     setOpenTask(null);
-    const timer = setTimeout(() => setToast(null), 4000);
+    // Kept up for roughly as long as the save itself might still be
+    // retrying in the background (see fetchWithRetry) — dismissing this
+    // sooner would read as "done" while the delete could still be in
+    // flight, which is exactly what made someone reload before it actually
+    // reached the server and have it silently not take effect.
+    const timer = setTimeout(() => setToast(null), 10000);
     setToast({
       message: deleterName ? `"${task.title}" — ${deleterName}님이 삭제함` : `"${task.title}" 삭제됨`,
       undo: () => {
