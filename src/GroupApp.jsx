@@ -1022,28 +1022,43 @@ export default function GroupApp() {
   async function loadGroup(id, { silent = false } = {}) {
     if (!silent) setGroupLoading(true);
     setGroupLoadError(null);
+    // A cold Netlify function (DB connection pool not warmed up yet) or a
+    // flaky mobile connection right after opening the app can fail the
+    // very first request even though the group is perfectly reachable a
+    // moment later — retry a couple of times before giving up and showing
+    // the "그룹을 불러오지 못했어요" screen, so people hit that far less often.
+    const MAX_ATTEMPTS = 3;
     try {
-      const res = await fetch(withGroupAuth(`/api/groups/${id}`, id));
-      if (res.status === 404) {
-        setGroupLoadError("not_found");
-        return;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          const res = await fetch(withGroupAuth(`/api/groups/${id}`, id));
+          if (res.status === 404) {
+            setGroupLoadError("not_found");
+            return;
+          }
+          if (res.status === 403) {
+            removeForbiddenGroupFromClient(id);
+            return;
+          }
+          if (!res.ok) throw new Error("fetch_failed");
+          const group = await res.json();
+          cacheGroup(group);
+          const withNotify = applyNotifyPrefs([group])[0];
+          setGroups((prev) => (prev.some((g) => g.id === group.id) ? prev.map((g) => (g.id === group.id ? withNotify : g)) : [...prev, withNotify]));
+          setBookmarks((prev) => {
+            const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
+            saveBookmarks(next);
+            return next;
+          });
+          return;
+        } catch {
+          if (attempt === MAX_ATTEMPTS) {
+            if (!silent) setGroupLoadError("network");
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+          }
+        }
       }
-      if (res.status === 403) {
-        removeForbiddenGroupFromClient(id);
-        return;
-      }
-      if (!res.ok) throw new Error("fetch_failed");
-      const group = await res.json();
-      cacheGroup(group);
-      const withNotify = applyNotifyPrefs([group])[0];
-      setGroups((prev) => (prev.some((g) => g.id === group.id) ? prev.map((g) => (g.id === group.id ? withNotify : g)) : [...prev, withNotify]));
-      setBookmarks((prev) => {
-        const next = [bookmarkFromGroup(group), ...prev.filter((b) => b.id !== group.id)];
-        saveBookmarks(next);
-        return next;
-      });
-    } catch {
-      if (!silent) setGroupLoadError("network");
     } finally {
       if (!silent) setGroupLoading(false);
     }
@@ -3398,7 +3413,13 @@ export default function GroupApp() {
               <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: "0 0 14px" }}>
                 그룹을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
               </p>
-              <button onClick={() => loadGroup(activeId)} style={{ width: "100%" }}>
+              {/* A plain re-fetch (loadGroup again) can keep failing on some
+                  mobile browsers even once the network's actually fine again —
+                  a stale/dead connection from the first attempt gets reused
+                  instead of the browser opening a fresh one. A full reload
+                  (what pull-to-refresh already does, and reliably fixes it)
+                  forces that fresh connection, so this button does the same. */}
+              <button onClick={() => window.location.reload()} style={{ width: "100%" }}>
                 다시 시도
               </button>
             </>
